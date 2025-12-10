@@ -199,155 +199,155 @@
 // }
 
 
-import { useMemo, useState } from "react";
-import { useData } from "../context/DataContext.jsx";
-import { useFilters } from "../context/FiltersContext.jsx";
-import applyFilters from "../lib/applyFilters.js";
-import { countByMulti, toChartData } from "../lib/aggregate.js";
+import React, { useMemo, useState } from "react";
 import LeftRail from "../components/LeftRail.jsx";
 import FilterModal from "../components/FilterModal.jsx";
 import BookmarkModal from "../components/BookmarkModal.jsx";
 
-import PieBlock from "../components/charts/PieBlock.jsx";
 import BarBlock from "../components/charts/BarBlock.jsx";
+import PieBlock from "../components/charts/PieBlock.jsx";
 import LineBlock from "../components/charts/LineBlock.jsx";
-import ChartCard from "../components/charts/ChartCard.jsx";
+import VennBlock from "../components/VennBlock.jsx";
 
-/** ME-DMZ / FX-DMZ chart palette (matches your HTML mock) */
-const CHART_COLORS = [
-  "#3AA608", // green
-  "#F2C53D", // yellow
-  "#D97218", // orange
-  "#232073", // deep blue
-  "#CEECF2", // light blue
-  "#747474", // grey
-  "#D9D9D9"  // light grey
-];
-
-// Helper: robust task extraction from live rows
-function getTasksArray(r) {
-  if (Array.isArray(r.tasks)) return r.tasks.filter(Boolean);
-  if (typeof r.tasks === "string") {
-    return r.tasks.split(",").map(t => t.trim()).filter(Boolean);
-  }
-  return [];
-}
+import { useData } from "../context/DataContext.jsx";
+import { useFilters } from "../context/FiltersContext.jsx";
+import applyFilters from "../lib/applyFilters.js";
+import { aggregate, aggregateMulti, aggregateByYear } from "../lib/aggregate.js";
 
 export default function Overview() {
-  const { tools, loading, error } = useData();
+  const { tools, loading } = useData();
   const { filters } = useFilters();
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const [bookmarksOpen, setBookmarksOpen] = useState(false);
 
-  const filtered = useMemo(() => applyFilters(tools, filters), [tools, filters]);
+  const [showFilters, setShowFilters] = useState(false);
+  const [showBookmarks, setShowBookmarks] = useState(false);
 
-  const infraCount = filtered.length;
-  const parentOrgCount = useMemo(() => {
-    const set = new Set(filtered.map(r => r.parentOrg).filter(Boolean));
-    return set.size;
-  }, [filtered]);
+  const filtered = useMemo(() => applyFilters(tools || [], filters), [tools, filters]);
 
-  if (loading) return <div className="p-6">Loading…</div>;
-  if (error) return <div className="p-6 text-me-orange">{error}</div>;
+  // Aggregations for Overview visuals
+  const fundingAgg = useMemo(() => aggregate(filtered, "FUNDING_TYPE"), [filtered]);
+  const foundationModelAgg = useMemo(() => aggregate(filtered, "FOUNDATIONAL_MODEL"), [filtered]);
+  const inferenceAgg = useMemo(() => aggregate(filtered, "INFERENCE_LOCATION"), [filtered]);
+  const ipAgg = useMemo(() => aggregate(filtered, "IP_CREATION_POTENTIAL"), [filtered]);
 
-  // ---- chart datas from real filtered data ----
-  const fundingData = toChartData(countByMulti(filtered, r => [r.fundingType]));
-  const modelData = toChartData(countByMulti(filtered, r => [r.foundationalModel]));
-  const toolsLaunchedData = toChartData(countByMulti(filtered, r => [r.yearLaunched]));
-  const companiesFoundedData = toChartData(countByMulti(filtered, r => [r.yearCompanyFounded]));
-  const ipData = toChartData(countByMulti(filtered, r => [r.ipCreationPotential || r.potentialForIp]));
-  const inferenceData = toChartData(countByMulti(filtered, r => [r.inferenceLocation]));
-  const softwareData = toChartData(countByMulti(filtered, r => [r.softwareType]));
-  const maturityData = toChartData(countByMulti(filtered, r => [r.orgMaturity]));
+  const toolsLaunchedAgg = useMemo(() => aggregateByYear(filtered, "YEAR_LAUNCHED"), [filtered]);
+  const companiesFoundedAgg = useMemo(() => aggregateByYear(filtered, "YEAR_COMPANY_FOUNDED"), [filtered]);
 
-  // ✅ BIG TOP CHART: Tools by Task
-  const toolsByTaskData = useMemo(() => {
-    const counts = countByMulti(filtered, r => getTasksArray(r));
-    const data = toChartData(counts);
-    return data.sort((a, b) => b.count - a.count);
-  }, [filtered]);
+  // Example venn buckets (if your data keys differ, just adjust here)
+  const hasApiCount = useMemo(
+    () => filtered.filter(t => (t?.HAS_API ?? t?._raw?.HAS_API ?? t?._raw?.has_api) === true).length,
+    [filtered]
+  );
+  const multimodalCount = useMemo(
+    () => filtered.filter(t => (t?.MODEL_TYPE ?? "").toLowerCase().includes("multimodal")).length,
+    [filtered]
+  );
+  const llmCount = useMemo(
+    () => filtered.filter(t => (t?.MODEL_TYPE ?? "").toLowerCase().includes("llm")).length,
+    [filtered]
+  );
 
   return (
-    <div className="min-h-screen bg-me-bg flex items-start gap-6">
+    <div className="flex w-full min-h-screen bg-[#f6f8fb]">
       <LeftRail
-        infraCount={infraCount}
-        parentOrgCount={parentOrgCount}
-        onOpenFilters={() => setFiltersOpen(true)}
-        onOpenBookmarks={() => setBookmarksOpen(true)}
+        onOpenFilters={() => setShowFilters(true)}
+        onOpenBookmarks={() => setShowBookmarks(true)}
       />
 
-      <main className="flex-1 px-8 pt-8 pb-10">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-[48px] font-bold text-me-ink leading-tight">
-            Overview
-          </h1>
-          <p className="text-[18px] text-me-text mt-2">
-            AI Tools Analytics Dashboard
-          </p>
+      <div className="flex-1 p-6">
+        <div className="mb-6">
+          <h1 className="text-4xl font-extrabold text-[#232073]">Overview</h1>
+          <p className="text-gray-600 mt-1">AI Tools Analytics Dashboard</p>
         </div>
 
-        {/* ✅ Full-width Tools by Task chart (matches mock) */}
-        <ChartCard title="Tools by Task">
-          <BarBlock
-            title=""
-            data={toolsByTaskData}
-            xKey="key"
-            filterKey="tasks"
-            height={380}
-            horizontalLabels={false}
-            colors={CHART_COLORS}
-          />
-        </ChartCard>
+        {loading ? (
+          <div className="text-gray-500">Loading…</div>
+        ) : (
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            {/* Row 1 */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+              <BarBlock
+                title="Provider Orgs - Types of Funding"
+                data={fundingAgg}
+                labelKey="key"
+                filterKey="fundingType"
+                height={260}
+              />
+            </div>
 
-        {/* Rest of charts (2-col grid) */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 mt-8">
-          <ChartCard title="Provider Orgs – Types of Funding" small>
-            <BarBlock title="" data={fundingData} colors={CHART_COLORS} />
-          </ChartCard>
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+              <BarBlock
+                title="Tools by Foundational Model"
+                data={foundationModelAgg}
+                labelKey="key"
+                filterKey="foundationalModel"
+                height={260}
+              />
+            </div>
 
-          <ChartCard title="Tools by Foundational Model" small>
-            <BarBlock title="" data={modelData} colors={CHART_COLORS} />
-          </ChartCard>
+            {/* Row 2 */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+              <LineBlock
+                title="Tools Launched by Year"
+                data={toolsLaunchedAgg}
+                labelKey="key"
+                filterKey="yearLaunchedRange"
+                height={260}
+              />
+            </div>
 
-          <ChartCard title="Tools Launched by Year">
-            <LineBlock title="" data={toolsLaunchedData} />
-          </ChartCard>
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+              <LineBlock
+                title="Companies Founded by Year"
+                data={companiesFoundedAgg}
+                labelKey="key"
+                filterKey="yearCompanyFoundedRange"
+                height={260}
+              />
+            </div>
 
-          <ChartCard title="Companies Founded by Year">
-            <LineBlock title="" data={companiesFoundedData} />
-          </ChartCard>
+            {/* Row 3 */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+              <PieBlock
+                title="IP Creation Potential"
+                data={ipAgg}
+                labelKey="key"
+                filterKey="ipCreationPotential"
+                height={260}
+              />
+            </div>
 
-          <ChartCard title="IP Creation Potential" small>
-            <PieBlock title="" data={ipData} colors={CHART_COLORS} />
-          </ChartCard>
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+              <BarBlock
+                title="Tools by Inference Location"
+                data={inferenceAgg}
+                labelKey="key"
+                filterKey="inferenceLocation"
+                height={260}
+              />
+            </div>
 
-          <ChartCard title="Tools by Inference Location" small>
-            <BarBlock title="" data={inferenceData} colors={CHART_COLORS} />
-          </ChartCard>
+            {/* Row 4 (Venn / capability summary) */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 xl:col-span-2">
+              <VennBlock
+                title="Model / API Capability Snapshot"
+                a={llmCount}
+                b={multimodalCount}
+                c={hasApiCount}
+                labels={{ a: "LLM", b: "Multimodal", c: "Has API" }}
+                height={260}
+              />
+            </div>
+          </div>
+        )}
+      </div>
 
-          <ChartCard title="Tools by Software Type" small>
-            <PieBlock title="" data={softwareData} colors={CHART_COLORS} />
-          </ChartCard>
-
-          <ChartCard title="Providers by Maturity" small>
-            <PieBlock title="" data={maturityData} colors={CHART_COLORS} />
-          </ChartCard>
-        </div>
-      </main>
-
-      <FilterModal
-        open={filtersOpen}
-        onClose={() => setFiltersOpen(false)}
-        allRows={tools}
-      />
-      <BookmarkModal
-        open={bookmarksOpen}
-        onClose={() => setBookmarksOpen(false)}
-      />
+      <FilterModal open={showFilters} onClose={() => setShowFilters(false)} />
+      <BookmarkModal open={showBookmarks} onClose={() => setShowBookmarks(false)} />
     </div>
   );
 }
+
+
 
 
 
