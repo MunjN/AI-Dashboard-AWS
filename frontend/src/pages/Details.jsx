@@ -88,23 +88,18 @@ import { countByMulti, toChartData } from "../lib/aggregate.js";
 
 function getField(r, field) {
   const direct = r?.[field];
+  const lower = r?.[field?.toLowerCase()];
   const raw =
     r?._raw?.[field] ??
     r?._raw?.[field?.toLowerCase()] ??
-    r?._raw?.[field?.toUpperCase()] ??
-    null;
-
-  return direct ?? raw;
+    r?._raw?.[field?.toUpperCase()];
+  return direct ?? lower ?? raw ?? null;
 }
 
 function getMultiList(r, field) {
   const val = getField(r, field);
-  if (Array.isArray(val)) {
-    return val.filter(Boolean).map(v => String(v).trim()).filter(Boolean);
-  }
-  if (typeof val === "string") {
-    return val.split(",").map(s => s.trim()).filter(Boolean);
-  }
+  if (Array.isArray(val)) return val.filter(Boolean).map(v => String(v).trim()).filter(Boolean);
+  if (typeof val === "string") return val.split(",").map(s => s.trim()).filter(Boolean);
   return [];
 }
 
@@ -115,10 +110,7 @@ export default function Details() {
   const [showFilters, setShowFilters] = useState(false);
   const [showBookmarks, setShowBookmarks] = useState(false);
 
-  const toolsArr = useMemo(
-    () => (Array.isArray(tools) ? tools : []),
-    [tools]
-  );
+  const toolsArr = useMemo(() => (Array.isArray(tools) ? tools : []), [tools]);
 
   const filtered = useMemo(() => {
     const out = applyFilters(toolsArr, filters);
