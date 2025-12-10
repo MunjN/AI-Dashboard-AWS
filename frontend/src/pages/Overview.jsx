@@ -212,7 +212,39 @@ import VennBlock from "../components/VennBlock.jsx";
 import { useData } from "../context/DataContext.jsx";
 import { useFilters } from "../context/FiltersContext.jsx";
 import applyFilters from "../lib/applyFilters.js";
-import { aggregate, aggregateByYear } from "../lib/aggregate.js";
+
+import {
+  countBy,
+  countUniqueBy,
+  toChartData
+} from "../lib/aggregate.js";
+
+/**
+ * Utility: get a field from row OR row._raw, supporting case + snake fallback.
+ */
+function getField(r, field) {
+  const direct = r?.[field];
+  const raw =
+    r?._raw?.[field] ??
+    r?._raw?.[field?.toLowerCase()] ??
+    r?._raw?.[field?.toUpperCase()] ??
+    null;
+
+  return direct ?? raw;
+}
+
+/**
+ * Normalize single values:
+ * - array => first item? (or join) for counting we treat each separately elsewhere,
+ *   so here we just return stringified value.
+ */
+function getSingleKey(r, field) {
+  const val = getField(r, field);
+  if (Array.isArray(val)) return val.filter(Boolean).map(v => String(v).trim()).filter(Boolean);
+  if (typeof val === "string") return val.trim();
+  if (val == null) return "";
+  return String(val).trim();
+}
 
 export default function Overview() {
   const { tools, loading } = useData();
@@ -226,35 +258,68 @@ export default function Overview() {
     [tools, filters]
   );
 
-  // Aggregations for Overview visuals
-  const fundingAgg = useMemo(() => aggregate(filtered, "FUNDING_TYPE"), [filtered]);
-  const foundationModelAgg = useMemo(() => aggregate(filtered, "FOUNDATIONAL_MODEL"), [filtered]);
-  const inferenceAgg = useMemo(() => aggregate(filtered, "INFERENCE_LOCATION"), [filtered]);
-  const ipAgg = useMemo(() => aggregate(filtered, "IP_CREATION_POTENTIAL"), [filtered]);
+  /**
+   * OVERVIEW VISUALS (everything except big "Tools by Task")
+   */
 
-  const toolsLaunchedAgg = useMemo(
-    () => aggregateByYear(filtered, "YEAR_LAUNCHED"),
-    [filtered]
-  );
-  const companiesFoundedAgg = useMemo(
-    () => aggregateByYear(filtered, "YEAR_COMPANY_FOUNDED"),
-    [filtered]
-  );
+  // Provider Orgs - Types of Funding (unique parent orgs per bucket)
+  const fundingAgg = useMemo(() => {
+    const map = countUniqueBy(
+      filtered,
+      r => getSingleKey(r, "FUNDING_TYPE"),
+      r => getSingleKey(r, "PARENT_ORG")
+    );
+    return toChartData(map, "key");
+  }, [filtered]);
 
-  // Simple capability snapshot venn
+  // Tools by Foundational Model (count tools)
+  const foundationModelAgg = useMemo(() => {
+    const map = countBy(filtered, r => getSingleKey(r, "FOUNDATIONAL_MODEL"));
+    return toChartData(map, "key").sort((a, b) => b.count - a.count);
+  }, [filtered]);
+
+  // Tools by Inference Location
+  const inferenceAgg = useMemo(() => {
+    const map = countBy(filtered, r => getSingleKey(r, "INFERENCE_LOCATION"));
+    return toChartData(map, "key").sort((a, b) => b.count - a.count);
+  }, [filtered]);
+
+  // IP Creation Potential
+  const ipAgg = useMemo(() => {
+    const map = countBy(filtered, r => getSingleKey(r, "IP_CREATION_POTENTIAL"));
+    return toChartData(map, "key").sort((a, b) => b.count - a.count);
+  }, [filtered]);
+
+  // Tools Launched by Year
+  const toolsLaunchedAgg = useMemo(() => {
+    const map = countBy(filtered, r => getSingleKey(r, "YEAR_LAUNCHED"));
+    return toChartData(map, "key");
+  }, [filtered]);
+
+  // Companies Founded by Year (unique parent orgs per year)
+  const companiesFoundedAgg = useMemo(() => {
+    const map = countUniqueBy(
+      filtered,
+      r => getSingleKey(r, "YEAR_COMPANY_FOUNDED"),
+      r => getSingleKey(r, "PARENT_ORG")
+    );
+    return toChartData(map, "key");
+  }, [filtered]);
+
+  // Snapshot venn counts
   const hasApiCount = useMemo(
     () =>
-      filtered.filter(t => {
-        const v = t?.HAS_API ?? t?._raw?.HAS_API ?? t?._raw?.has_api;
-        return v === true || v === "YES";
+      filtered.filter(r => {
+        const v = getField(r, "HAS_API");
+        return v === true || String(v).toUpperCase() === "YES";
       }).length,
     [filtered]
   );
 
   const multimodalCount = useMemo(
     () =>
-      filtered.filter(t =>
-        String(t?.MODEL_TYPE ?? t?._raw?.MODEL_TYPE ?? "")
+      filtered.filter(r =>
+        String(getField(r, "MODEL_TYPE") || "")
           .toLowerCase()
           .includes("multimodal")
       ).length,
@@ -263,8 +328,8 @@ export default function Overview() {
 
   const llmCount = useMemo(
     () =>
-      filtered.filter(t =>
-        String(t?.MODEL_TYPE ?? t?._raw?.MODEL_TYPE ?? "")
+      filtered.filter(r =>
+        String(getField(r, "MODEL_TYPE") || "")
           .toLowerCase()
           .includes("llm")
       ).length,
@@ -371,6 +436,8 @@ export default function Overview() {
     </div>
   );
 }
+
+
 
 
 
