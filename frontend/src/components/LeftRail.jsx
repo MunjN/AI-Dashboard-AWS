@@ -186,11 +186,18 @@ export default function LeftRail({
 
   return (
     <aside className="w-[240px] shrink-0 h-screen sticky top-0 bg-me-ink text-white flex flex-col p-4 gap-4 shadow-me">
-      {/* Header */}
-      <div>
-        <div className="text-xl font-bold tracking-wide">ME-DMZ AI Tools</div>
+      {/* Header (clickable to me-dmz.com) */}
+      <a
+        href="https://me-dmz.com"
+        target="_blank"
+        rel="noreferrer"
+        className="block group"
+      >
+        <div className="text-xl font-bold tracking-wide group-hover:underline">
+          ME-DMZ AI Tools
+        </div>
         <div className="text-xs opacity-80 mt-1">Dashboard</div>
-      </div>
+      </a>
 
       {/* Counts */}
       {(infraCount != null || parentOrgCount != null) && (
@@ -260,7 +267,15 @@ export default function LeftRail({
         </button>
 
         <div className="flex items-center justify-between text-xs opacity-70">
-          <span>Presented by ME-DMZ</span>
+          {/* Presented by link (clickable) */}
+          <a
+            href="https://me-dmz.com"
+            target="_blank"
+            rel="noreferrer"
+            className="hover:underline"
+          >
+            Presented by ME-DMZ
+          </a>
 
           {isInternal && (
             <Link
@@ -276,3 +291,4 @@ export default function LeftRail({
     </aside>
   );
 }
+
