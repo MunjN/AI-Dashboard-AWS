@@ -220,7 +220,7 @@ import {
 } from "../lib/aggregate.js";
 
 /**
- * Utility: get a field from row OR row._raw, supporting case + snake fallback.
+ * Utility: get a field from row OR row._raw, supporting case fallback.
  */
 function getField(r, field) {
   const direct = r?.[field];
@@ -234,13 +234,14 @@ function getField(r, field) {
 }
 
 /**
- * Normalize single values:
- * - array => first item? (or join) for counting we treat each separately elsewhere,
- *   so here we just return stringified value.
+ * Normalize to a single string key for counting.
+ * If array, join items with ", " so it’s still a stable key.
  */
 function getSingleKey(r, field) {
   const val = getField(r, field);
-  if (Array.isArray(val)) return val.filter(Boolean).map(v => String(v).trim()).filter(Boolean);
+  if (Array.isArray(val)) {
+    return val.filter(Boolean).map(v => String(v).trim()).filter(Boolean).join(", ");
+  }
   if (typeof val === "string") return val.trim();
   if (val == null) return "";
   return String(val).trim();
@@ -253,57 +254,60 @@ export default function Overview() {
   const [showFilters, setShowFilters] = useState(false);
   const [showBookmarks, setShowBookmarks] = useState(false);
 
-  const filtered = useMemo(
-    () => applyFilters(tools || [], filters),
-    [tools, filters]
+  // HARD guard: tools must be an array always.
+  const toolsArr = useMemo(
+    () => (Array.isArray(tools) ? tools : []),
+    [tools]
   );
 
-  /**
-   * OVERVIEW VISUALS (everything except big "Tools by Task")
-   */
+  const filtered = useMemo(() => {
+    const out = applyFilters(toolsArr, filters);
+    return Array.isArray(out) ? out : [];
+  }, [toolsArr, filters]);
 
-  // Provider Orgs - Types of Funding (unique parent orgs per bucket)
+  // Aggregations (all return [] if anything weird happens)
   const fundingAgg = useMemo(() => {
     const map = countUniqueBy(
       filtered,
       r => getSingleKey(r, "FUNDING_TYPE"),
       r => getSingleKey(r, "PARENT_ORG")
     );
-    return toChartData(map, "key");
+    const chart = toChartData(map, "key");
+    return Array.isArray(chart) ? chart : [];
   }, [filtered]);
 
-  // Tools by Foundational Model (count tools)
   const foundationModelAgg = useMemo(() => {
     const map = countBy(filtered, r => getSingleKey(r, "FOUNDATIONAL_MODEL"));
-    return toChartData(map, "key").sort((a, b) => b.count - a.count);
+    const chart = toChartData(map, "key");
+    return Array.isArray(chart) ? chart.sort((a, b) => b.count - a.count) : [];
   }, [filtered]);
 
-  // Tools by Inference Location
   const inferenceAgg = useMemo(() => {
     const map = countBy(filtered, r => getSingleKey(r, "INFERENCE_LOCATION"));
-    return toChartData(map, "key").sort((a, b) => b.count - a.count);
+    const chart = toChartData(map, "key");
+    return Array.isArray(chart) ? chart.sort((a, b) => b.count - a.count) : [];
   }, [filtered]);
 
-  // IP Creation Potential
   const ipAgg = useMemo(() => {
     const map = countBy(filtered, r => getSingleKey(r, "IP_CREATION_POTENTIAL"));
-    return toChartData(map, "key").sort((a, b) => b.count - a.count);
+    const chart = toChartData(map, "key");
+    return Array.isArray(chart) ? chart.sort((a, b) => b.count - a.count) : [];
   }, [filtered]);
 
-  // Tools Launched by Year
   const toolsLaunchedAgg = useMemo(() => {
     const map = countBy(filtered, r => getSingleKey(r, "YEAR_LAUNCHED"));
-    return toChartData(map, "key");
+    const chart = toChartData(map, "key");
+    return Array.isArray(chart) ? chart : [];
   }, [filtered]);
 
-  // Companies Founded by Year (unique parent orgs per year)
   const companiesFoundedAgg = useMemo(() => {
     const map = countUniqueBy(
       filtered,
       r => getSingleKey(r, "YEAR_COMPANY_FOUNDED"),
       r => getSingleKey(r, "PARENT_ORG")
     );
-    return toChartData(map, "key");
+    const chart = toChartData(map, "key");
+    return Array.isArray(chart) ? chart : [];
   }, [filtered]);
 
   // Snapshot venn counts
@@ -349,7 +353,7 @@ export default function Overview() {
           <p className="text-gray-600 mt-1">AI Tools Analytics Dashboard</p>
         </div>
 
-        {loading ? (
+        {loading || !toolsArr.length ? (
           <div className="text-gray-500">Loading…</div>
         ) : (
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
