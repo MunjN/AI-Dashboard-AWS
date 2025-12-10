@@ -73,83 +73,72 @@
 // }
 
 
-import { useMemo, useState } from "react";
-import { useData } from "../context/DataContext.jsx";
-import { useFilters } from "../context/FiltersContext.jsx";
-import applyFilters from "../lib/applyFilters.js";
-import { countByMulti, toChartData } from "../lib/aggregate.js";
+import React, { useMemo, useState } from "react";
 import LeftRail from "../components/LeftRail.jsx";
 import FilterModal from "../components/FilterModal.jsx";
 import BookmarkModal from "../components/BookmarkModal.jsx";
-import BarBlock from "../components/charts/BarBlock.jsx";
 import ToolsTable from "../components/ToolsTable.jsx";
+import BarBlock from "../components/charts/BarBlock.jsx";
+import { useData } from "../context/DataContext.jsx";
+import { useFilters } from "../context/FiltersContext.jsx";
+import applyFilters from "../lib/applyFilters.js";
+import { aggregateMulti } from "../lib/aggregate.js";
 
 export default function Details() {
-  const { tools, loading, error } = useData();
+  const { tools, loading } = useData();
   const { filters } = useFilters();
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const [bookmarksOpen, setBookmarksOpen] = useState(false);
-  const [tableView, setTableView] = useState("tech");
 
-  const filtered = useMemo(() => applyFilters(tools, filters), [tools, filters]);
+  const [showFilters, setShowFilters] = useState(false);
+  const [showBookmarks, setShowBookmarks] = useState(false);
 
-  const infraCount = filtered.length;
-  const parentOrgCount = useMemo(() => {
-    const set = new Set(filtered.map(r => r.parentOrg).filter(Boolean));
-    return set.size;
-  }, [filtered]);
+  const filtered = useMemo(() => applyFilters(tools || [], filters), [tools, filters]);
 
-  if (loading) return <div className="p-6">Loading…</div>;
-  if (error) return <div className="p-6 text-me-orange">{error}</div>;
-
-  // ✅ TOP CHART: Tools by Task (multi-count from tasks array)
-  const toolsByTask = useMemo(() => {
-    const map = countByMulti(filtered, r => r.tasks || []);
-    const data = toChartData(map, { keyName: "key" });
-    // sort descending so biggest tasks are leftmost
-    return [...data].sort((a, b) => b.count - a.count);
-  }, [filtered]);
+  // Big chart: Tools by Task
+  const taskAgg = useMemo(
+    () => aggregateMulti(filtered, "TASKS"),
+    [filtered]
+  );
 
   return (
-    <div className="min-h-screen bg-me-bg px-6 pt-6 flex items-start gap-6">
+    <div className="flex w-full min-h-screen bg-[#f6f8fb]">
       <LeftRail
-        infraCount={infraCount}
-        parentOrgCount={parentOrgCount}
-        onOpenFilters={() => setFiltersOpen(true)}
-        onOpenBookmarks={() => setBookmarksOpen(true)}
-        onSwitchView={() => setTableView(v => (v === "tech" ? "biz" : "tech"))}
-        viewLabel={tableView === "tech" ? "Technology & Capability" : "Business & Governance"}
+        onOpenFilters={() => setShowFilters(true)}
+        onOpenBookmarks={() => setShowBookmarks(true)}
       />
 
-      <div className="flex-1">
-        {/* ✅ big Tools by Task chart */}
-        <div className="bg-white rounded-md p-8 shadow-me border border-me-border">
-          <h2 className="text-[20px] font-bold text-me-ink mb-6">
-            Tools by Task
-          </h2>
-
-          <BarBlock
-            title=""
-            data={toolsByTask}
-            xKey="key"
-            filterKey="tasks"
-            height={360}
-            horizontalLabels={false}
-          />
+      <div className="flex-1 p-6">
+        {/* Big chart ONLY on Details */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 mb-6">
+          {loading ? (
+            <div className="text-gray-500">Loading…</div>
+          ) : (
+            <BarBlock
+              title="Tools by Task"
+              data={taskAgg}
+              labelKey="key"
+              filterKey="tasks"
+              height={420}
+              rotateLabels
+              maxBarSize={48}
+            />
+          )}
         </div>
 
-        <div className="mt-6">
-          <h3 className="text-me-ink font-semibold mb-2">
-            {tableView === "tech" ? "Technology & Capability" : "Business & Governance"}
-          </h3>
-          <ToolsTable rows={filtered} view={tableView} />
+        {/* Table */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4">
+          <div className="text-lg font-semibold text-[#232073] mb-2">
+            Technology &amp; Capability
+          </div>
+          <ToolsTable data={filtered} />
         </div>
       </div>
 
-      <FilterModal open={filtersOpen} onClose={() => setFiltersOpen(false)} allRows={tools} />
-      <BookmarkModal open={bookmarksOpen} onClose={() => setBookmarksOpen(false)} />
+      <FilterModal open={showFilters} onClose={() => setShowFilters(false)} />
+      <BookmarkModal open={showBookmarks} onClose={() => setShowBookmarks(false)} />
     </div>
   );
 }
+
+
 
 
