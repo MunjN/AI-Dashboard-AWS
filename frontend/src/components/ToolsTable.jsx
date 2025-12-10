@@ -309,16 +309,39 @@ export default function ToolsTable({ rows = [], view = "tech" }) {
   const [creditsLeft, setCreditsLeft] = useState(null);
   const [msg, setMsg] = useState("");
   const [exporting, setExporting] = useState(false);
-
-  // ✅ NEW: search state
   const [query, setQuery] = useState("");
 
+  // reset selection when filters/data change
   useEffect(() => {
     setSelectedIds([]);
     setMsg("");
   }, [rows]);
 
-  // ✅ NEW: filter rows by search query
+  // ✅ NEW: try to load credits on first view (safe if 404)
+  useEffect(() => {
+    async function loadCredits() {
+      try {
+        const jwt = Cookies.get("idToken");
+        if (!jwt) return;
+
+        const res = await fetch(
+          `${import.meta.env.VITE_API_BASE}/api/exports-left`,
+          { headers: { Authorization: `Bearer ${jwt}` } }
+        );
+
+        if (!res.ok) return;
+        const json = await res.json();
+        if (typeof json?.exportsLeft === "number") {
+          setCreditsLeft(json.exportsLeft);
+        }
+      } catch {
+        // silent
+      }
+    }
+    loadCredits();
+  }, []);
+
+  // ✅ search filter
   const filteredRows = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return rows;
@@ -327,11 +350,7 @@ export default function ToolsTable({ rows = [], view = "tech" }) {
       const name = (r.infraName || r.toolName || "").toLowerCase();
       const parent = (r.parentOrg || "").toLowerCase();
       const aiType = (r.aiType || "").toLowerCase();
-      return (
-        name.includes(q) ||
-        parent.includes(q) ||
-        aiType.includes(q)
-      );
+      return name.includes(q) || parent.includes(q) || aiType.includes(q);
     });
   }, [rows, query]);
 
@@ -398,14 +417,44 @@ export default function ToolsTable({ rows = [], view = "tech" }) {
         return;
       }
 
+      // ✅ NEW: if backend returns JSON with exportsLeft, capture it
+      let parsedJson = null;
+      try {
+        parsedJson = JSON.parse(text);
+        if (typeof parsedJson?.exportsLeft === "number") {
+          setCreditsLeft(parsedJson.exportsLeft);
+        }
+      } catch {
+        // not json, ignore
+      }
+
       if (format === "csv") {
-        const blob = new Blob([text], { type: "text/csv" });
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = "export.csv";
-        a.click();
+        // if backend gave json anyway, build csv from rows
+        if (parsedJson?.rows?.length) {
+          const keys = Object.keys(parsedJson.rows[0]);
+          const csv =
+            keys.join(",") +
+            "\n" +
+            parsedJson.rows
+              .map(row =>
+                keys.map(k => JSON.stringify(row[k] ?? "")).join(",")
+              )
+              .join("\n");
+
+          const blob = new Blob([csv], { type: "text/csv" });
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          a.download = "export.csv";
+          a.click();
+        } else {
+          const blob = new Blob([text], { type: "text/csv" });
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          a.download = "export.csv";
+          a.click();
+        }
       } else {
-        const json = JSON.parse(text);
+        const json = parsedJson || {};
         const blob = new Blob([JSON.stringify(json, null, 2)], {
           type: "application/json"
         });
@@ -415,8 +464,8 @@ export default function ToolsTable({ rows = [], view = "tech" }) {
         a.click();
       }
 
-      const left = res.headers.get("x-exports-left");
-      if (left != null) setCreditsLeft(Number(left));
+      const leftHeader = res.headers.get("x-exports-left");
+      if (leftHeader != null) setCreditsLeft(Number(leftHeader));
     } catch (e) {
       console.error(e);
       setMsg("Export failed.");
@@ -461,7 +510,7 @@ export default function ToolsTable({ rows = [], view = "tech" }) {
         </div>
       </div>
 
-      {/* ✅ NEW: search bar */}
+      {/* Search */}
       <div className="mb-3">
         <input
           value={query}
@@ -509,6 +558,14 @@ export default function ToolsTable({ rows = [], view = "tech" }) {
               const id = r?._raw?.INFRA_ID || r?.infraId || i;
               const checked = selectedIds.includes(id);
 
+              // ✅ FIX: fallback to CSV truth for HAS_API
+              const hasApiBool =
+                typeof r.hasApi === "boolean"
+                  ? r.hasApi
+                  : String(r?._raw?.HAS_API || "")
+                      .toUpperCase()
+                      .trim() === "YES";
+
               return (
                 <tr
                   key={id}
@@ -541,7 +598,7 @@ export default function ToolsTable({ rows = [], view = "tech" }) {
                         {r.modelType || "—"}
                       </td>
                       <td className="p-2 text-center">
-                        {r.hasApi ? "✅" : "—"}
+                        {hasApiBool ? "✅" : "—"}
                       </td>
                     </>
                   ) : (
@@ -586,6 +643,8 @@ export default function ToolsTable({ rows = [], view = "tech" }) {
     </div>
   );
 }
+
+
 
 
 
