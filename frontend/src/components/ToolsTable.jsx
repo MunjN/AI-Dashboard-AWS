@@ -304,7 +304,33 @@ import Cookies from "js-cookie";
 
 const MAX_SELECT = 10;
 
-export default function ToolsTable({ rows = [], view = "tech" }) {
+/** Safely read from camelCase OR _raw uppercase CSV */
+function getField(r, field) {
+  if (!r) return null;
+  const direct = r[field];
+  const lower = r[field?.toLowerCase()];
+  const raw =
+    r?._raw?.[field] ??
+    r?._raw?.[field?.toLowerCase()] ??
+    r?._raw?.[field?.toUpperCase()];
+  return direct ?? lower ?? raw ?? null;
+}
+
+function toList(val) {
+  if (Array.isArray(val)) return val.map(v => String(v).trim()).filter(Boolean);
+  if (typeof val === "string")
+    return val.split(",").map(s => s.trim()).filter(Boolean);
+  if (val == null || val === "") return [];
+  return [String(val).trim()];
+}
+
+export default function ToolsTable({ rows, data, view = "tech" }) {
+  // ✅ accept either prop name
+  const baseRows = useMemo(() => {
+    const r = rows ?? data ?? [];
+    return Array.isArray(r) ? r : [];
+  }, [rows, data]);
+
   const [selectedIds, setSelectedIds] = useState([]);
   const [creditsLeft, setCreditsLeft] = useState(null);
   const [msg, setMsg] = useState("");
@@ -315,9 +341,9 @@ export default function ToolsTable({ rows = [], view = "tech" }) {
   useEffect(() => {
     setSelectedIds([]);
     setMsg("");
-  }, [rows]);
+  }, [baseRows]);
 
-  // ✅ load credits on first view (safe if 404)
+  // load credits on first view (safe if 404)
   useEffect(() => {
     async function loadCredits() {
       try {
@@ -341,23 +367,47 @@ export default function ToolsTable({ rows = [], view = "tech" }) {
     loadCredits();
   }, []);
 
-  // ✅ search filter
+  // ✅ search filter (upper + camel fallback)
   const filteredRows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return rows;
+    if (!q) return baseRows;
 
-    return rows.filter(r => {
-      const name = (r.infraName || r.toolName || "").toLowerCase();
-      const parent = (r.parentOrg || "").toLowerCase();
-      const aiType = (r.aiType || "").toLowerCase();
+    return baseRows.filter(r => {
+      const name = String(
+        getField(r, "NAME") ??
+          getField(r, "TOOL_NAME") ??
+          getField(r, "infraName") ??
+          getField(r, "toolName") ??
+          ""
+      ).toLowerCase();
+
+      const parent = String(
+        getField(r, "PARENT_ORGANIZATION") ??
+          getField(r, "PARENT_ORG") ??
+          getField(r, "parentOrg") ??
+          ""
+      ).toLowerCase();
+
+      const aiType = String(
+        getField(r, "AI_TYPE") ??
+          getField(r, "aiType") ??
+          ""
+      ).toLowerCase();
+
       return name.includes(q) || parent.includes(q) || aiType.includes(q);
     });
-  }, [rows, query]);
+  }, [baseRows, query]);
 
   const allIdsOnPage = useMemo(() => {
     return filteredRows
-      .map(r => r?._raw?.INFRA_ID || r?._raw?.infra_id || r?.infraId)
-      .filter(Boolean);
+      .map((r, i) =>
+        getField(r, "INFRA_ID") ??
+        getField(r, "TOOL_ID") ??
+        getField(r, "ID") ??
+        r?.infraId ??
+        i
+      )
+      .filter(v => v !== null && v !== undefined);
   }, [filteredRows]);
 
   const cappedIdsOnPage = useMemo(
@@ -417,19 +467,15 @@ export default function ToolsTable({ rows = [], view = "tech" }) {
         return;
       }
 
-      // ✅ if backend returns JSON with exportsLeft, capture it
       let parsedJson = null;
       try {
         parsedJson = JSON.parse(text);
         if (typeof parsedJson?.exportsLeft === "number") {
           setCreditsLeft(parsedJson.exportsLeft);
         }
-      } catch {
-        // not json, ignore
-      }
+      } catch {}
 
       if (format === "csv") {
-        // if backend gave json anyway, build csv from rows
         if (parsedJson?.rows?.length) {
           const keys = Object.keys(parsedJson.rows[0]);
           const csv =
@@ -520,7 +566,7 @@ export default function ToolsTable({ rows = [], view = "tech" }) {
         />
         {query.trim() && (
           <div className="text-xs text-me-text mt-1">
-            Showing {filteredRows.length} of {rows.length}
+            Showing {filteredRows.length} of {baseRows.length}
           </div>
         )}
       </div>
@@ -555,15 +601,18 @@ export default function ToolsTable({ rows = [], view = "tech" }) {
 
           <tbody>
             {filteredRows.map((r, i) => {
-              const id = r?._raw?.INFRA_ID || r?.infraId || i;
+              const id =
+                getField(r, "INFRA_ID") ??
+                getField(r, "TOOL_ID") ??
+                getField(r, "ID") ??
+                r?.infraId ??
+                i;
+
               const checked = selectedIds.includes(id);
 
-              // ✅ FIXED precedence:
-              // if CSV raw says YES/NO, trust that over backend boolean
-              const rawHasApi =
-                String(r?._raw?.HAS_API || "")
-                  .toUpperCase()
-                  .trim();
+              const rawHasApi = String(getField(r, "HAS_API") || "")
+                .toUpperCase()
+                .trim();
 
               const hasApiBool =
                 rawHasApi
@@ -571,6 +620,52 @@ export default function ToolsTable({ rows = [], view = "tech" }) {
                   : typeof r.hasApi === "boolean"
                   ? r.hasApi
                   : false;
+
+              const name =
+                getField(r, "NAME") ??
+                getField(r, "TOOL_NAME") ??
+                r.infraName ??
+                r.toolName ??
+                "—";
+
+              const aiType =
+                getField(r, "AI_TYPE") ??
+                r.aiType ??
+                "—";
+
+              const tasks =
+                toList(getField(r, "TASKS") ?? r.tasks).join(", ") || "—";
+
+              const inference =
+                getField(r, "INFERENCE_LOCATION") ??
+                r.inferenceLocation ??
+                "—";
+
+              const modelType =
+                getField(r, "MODEL_PRIVATE_OR_PUBLIC") ??
+                getField(r, "MODEL_TYPE") ??
+                r.modelType ??
+                "—";
+
+              const orgMaturity =
+                getField(r, "ORGANIZATION_MATURITY") ??
+                r.orgMaturity ??
+                "—";
+
+              const parentOrg =
+                getField(r, "PARENT_ORGANIZATION") ??
+                r.parentOrg ??
+                "—";
+
+              const businessModel =
+                getField(r, "BUSINESS_MODEL") ??
+                r.businessModel ??
+                "—";
+
+              const funding =
+                getField(r, "FUNDING") ??
+                r.fundingType ??
+                "—";
 
               return (
                 <tr
@@ -586,41 +681,24 @@ export default function ToolsTable({ rows = [], view = "tech" }) {
                     />
                   </td>
 
-                  <td className="p-2 font-semibold text-me-ink">
-                    {r.infraName || r.toolName || "—"}
-                  </td>
-
-                  <td className="p-2 text-me-text">{r.aiType || "—"}</td>
+                  <td className="p-2 font-semibold text-me-ink">{name}</td>
+                  <td className="p-2 text-me-text">{aiType}</td>
 
                   {view === "tech" ? (
                     <>
-                      <td className="p-2 text-me-text">
-                        {(r.tasks || []).join(", ") || "—"}
-                      </td>
-                      <td className="p-2 text-me-text">
-                        {r.inferenceLocation || "—"}
-                      </td>
-                      <td className="p-2 text-me-text">
-                        {r.modelType || "—"}
-                      </td>
+                      <td className="p-2 text-me-text">{tasks}</td>
+                      <td className="p-2 text-me-text">{inference}</td>
+                      <td className="p-2 text-me-text">{modelType}</td>
                       <td className="p-2 text-center">
                         {hasApiBool ? "✅" : "—"}
                       </td>
                     </>
                   ) : (
                     <>
-                      <td className="p-2 text-me-text">
-                        {r.orgMaturity || "—"}
-                      </td>
-                      <td className="p-2 text-me-text">
-                        {r.parentOrg || "—"}
-                      </td>
-                      <td className="p-2 text-me-text">
-                        {r.businessModel || "—"}
-                      </td>
-                      <td className="p-2 text-me-text">
-                        {r.fundingType || "—"}
-                      </td>
+                      <td className="p-2 text-me-text">{orgMaturity}</td>
+                      <td className="p-2 text-me-text">{parentOrg}</td>
+                      <td className="p-2 text-me-text">{businessModel}</td>
+                      <td className="p-2 text-me-text">{funding}</td>
                     </>
                   )}
 
@@ -649,7 +727,6 @@ export default function ToolsTable({ rows = [], view = "tech" }) {
     </div>
   );
 }
-
 
 
 
