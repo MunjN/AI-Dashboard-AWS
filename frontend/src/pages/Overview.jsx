@@ -217,13 +217,12 @@ import { countBy, countUniqueBy, toChartData } from "../lib/aggregate.js";
 
 function getField(r, field) {
   const direct = r?.[field];
+  const lower = r?.[field?.toLowerCase()];
   const raw =
     r?._raw?.[field] ??
     r?._raw?.[field?.toLowerCase()] ??
-    r?._raw?.[field?.toUpperCase()] ??
-    null;
-
-  return direct ?? raw;
+    r?._raw?.[field?.toUpperCase()];
+  return direct ?? lower ?? raw ?? null;
 }
 
 function getSingleKey(r, field) {
@@ -243,10 +242,7 @@ export default function Overview() {
   const [showFilters, setShowFilters] = useState(false);
   const [showBookmarks, setShowBookmarks] = useState(false);
 
-  const toolsArr = useMemo(
-    () => (Array.isArray(tools) ? tools : []),
-    [tools]
-  );
+  const toolsArr = useMemo(() => (Array.isArray(tools) ? tools : []), [tools]);
 
   const filtered = useMemo(() => {
     const out = applyFilters(toolsArr, filters);
@@ -426,7 +422,6 @@ export default function Overview() {
     </div>
   );
 }
-
 
 
 
