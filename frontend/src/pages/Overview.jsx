@@ -211,10 +211,9 @@ import VennBlock from "../components/VennBlock.jsx";
 
 import { useData } from "../context/DataContext.jsx";
 import { useFilters } from "../context/FiltersContext.jsx";
-import applyFilters from "../lib/applyFilters.js";
-
 import { countBy, countUniqueBy, toChartData } from "../lib/aggregate.js";
 
+/** same helpers as Details */
 function getField(r, field) {
   const direct = r?.[field];
   const lower = r?.[field?.toLowerCase()];
@@ -225,14 +224,50 @@ function getField(r, field) {
   return direct ?? lower ?? raw ?? null;
 }
 
-function getSingleKey(r, field) {
-  const val = getField(r, field);
-  if (Array.isArray(val)) {
-    return val.filter(Boolean).map(v => String(v).trim()).filter(Boolean).join(", ");
-  }
-  if (typeof val === "string") return val.trim();
-  if (val == null) return "";
-  return String(val).trim();
+function toList(val) {
+  if (Array.isArray(val)) return val.map(v => String(v).trim()).filter(Boolean);
+  if (typeof val === "string")
+    return val.split(",").map(s => s.trim()).filter(Boolean);
+  if (val == null || val === "") return [];
+  return [String(val).trim()];
+}
+
+function localApplyFilters(rows, filters) {
+  const f = filters || {};
+  const listFilter = (key, col) => {
+    const selected = Array.isArray(f[key]) ? f[key] : [];
+    if (!selected.length) return true;
+    const rowVals = toList(getField(col.row, col.col));
+    return rowVals.some(v => selected.includes(v));
+  };
+  const singleFilter = (key, col) => {
+    const v = f[key];
+    if (!v) return true;
+    const rowVal = String(getField(col.row, col.col) || "").trim();
+    return rowVal.toUpperCase() === String(v).trim().toUpperCase();
+  };
+
+  return rows.filter(row => {
+    if (!listFilter("softwareType", { row, col: "SOFTWARE_TYPE" })) return false;
+    if (!listFilter("expectedInput", { row, col: "EXPECTED_INPUT" })) return false;
+    if (!listFilter("generatedOutput", { row, col: "GENERATED_OUTPUT" })) return false;
+    if (!listFilter("modelType", { row, col: "MODEL_PRIVATE_OR_PUBLIC" })) return false;
+    if (!listFilter("foundationalModel", { row, col: "FOUNDATIONAL_MODEL" })) return false;
+    if (!listFilter("inferenceLocation", { row, col: "INFERENCE_LOCATION" })) return false;
+    if (!listFilter("tasks", { row, col: "TASKS" })) return false;
+    if (!listFilter("toolName", { row, col: "NAME" })) return false;
+
+    if (!listFilter("parentOrg", { row, col: "PARENT_ORGANIZATION" })) return false;
+    if (!listFilter("orgMaturity", { row, col: "ORGANIZATION_MATURITY" })) return false;
+    if (!listFilter("fundingType", { row, col: "FUNDING" })) return false;
+    if (!listFilter("businessModel", { row, col: "BUSINESS_MODEL" })) return false;
+    if (!listFilter("ipCreationPotential", { row, col: "POTENTIAL_FOR_IP" })) return false;
+
+    if (!singleFilter("legalCasePending", { row, col: "LEGAL_CASE_PENDING" })) return false;
+    if (!singleFilter("hasApi", { row, col: "HAS_API" })) return false;
+
+    return true;
+  });
 }
 
 export default function Overview() {
@@ -244,68 +279,59 @@ export default function Overview() {
 
   const toolsArr = useMemo(() => (Array.isArray(tools) ? tools : []), [tools]);
 
-  const filtered = useMemo(() => {
-    const out = applyFilters(toolsArr, filters);
-    return Array.isArray(out) ? out : [];
-  }, [toolsArr, filters]);
+  const filtered = useMemo(
+    () => localApplyFilters(toolsArr, filters),
+    [toolsArr, filters]
+  );
 
   const fundingAgg = useMemo(() => {
     const map = countUniqueBy(
       filtered,
-      r => getSingleKey(r, "FUNDING_TYPE"),
-      r => getSingleKey(r, "PARENT_ORG")
+      r => getField(r, "FUNDING"),
+      r => getField(r, "PARENT_ORGANIZATION")
     );
-    const chart = toChartData(map, "key");
-    return Array.isArray(chart) ? chart : [];
+    return toChartData(map, "key");
   }, [filtered]);
 
   const foundationModelAgg = useMemo(() => {
-    const map = countBy(filtered, r => getSingleKey(r, "FOUNDATIONAL_MODEL"));
-    const chart = toChartData(map, "key");
-    return Array.isArray(chart) ? chart.sort((a, b) => b.count - a.count) : [];
+    const map = countBy(filtered, r => getField(r, "FOUNDATIONAL_MODEL"));
+    return toChartData(map, "key").sort((a, b) => b.count - a.count);
   }, [filtered]);
 
   const inferenceAgg = useMemo(() => {
-    const map = countBy(filtered, r => getSingleKey(r, "INFERENCE_LOCATION"));
-    const chart = toChartData(map, "key");
-    return Array.isArray(chart) ? chart.sort((a, b) => b.count - a.count) : [];
+    const map = countBy(filtered, r => getField(r, "INFERENCE_LOCATION"));
+    return toChartData(map, "key").sort((a, b) => b.count - a.count);
   }, [filtered]);
 
   const ipAgg = useMemo(() => {
-    const map = countBy(filtered, r => getSingleKey(r, "IP_CREATION_POTENTIAL"));
-    const chart = toChartData(map, "key");
-    return Array.isArray(chart) ? chart.sort((a, b) => b.count - a.count) : [];
+    const map = countBy(filtered, r => getField(r, "POTENTIAL_FOR_IP"));
+    return toChartData(map, "key").sort((a, b) => b.count - a.count);
   }, [filtered]);
 
   const toolsLaunchedAgg = useMemo(() => {
-    const map = countBy(filtered, r => getSingleKey(r, "YEAR_LAUNCHED"));
-    const chart = toChartData(map, "key");
-    return Array.isArray(chart) ? chart : [];
+    const map = countBy(filtered, r => getField(r, "YEAR_LAUNCHED"));
+    return toChartData(map, "key");
   }, [filtered]);
 
   const companiesFoundedAgg = useMemo(() => {
     const map = countUniqueBy(
       filtered,
-      r => getSingleKey(r, "YEAR_COMPANY_FOUNDED"),
-      r => getSingleKey(r, "PARENT_ORG")
+      r => getField(r, "YEAR_COMPANY_FOUNDED"),
+      r => getField(r, "PARENT_ORGANIZATION")
     );
-    const chart = toChartData(map, "key");
-    return Array.isArray(chart) ? chart : [];
+    return toChartData(map, "key");
   }, [filtered]);
 
   const hasApiCount = useMemo(
     () =>
-      filtered.filter(r => {
-        const v = getField(r, "HAS_API");
-        return v === true || String(v).toUpperCase() === "YES";
-      }).length,
+      filtered.filter(r => String(getField(r, "HAS_API") || "").toUpperCase() === "YES").length,
     [filtered]
   );
 
   const multimodalCount = useMemo(
     () =>
       filtered.filter(r =>
-        String(getField(r, "MODEL_TYPE") || "")
+        String(getField(r, "FOUNDATIONAL_MODEL") || "")
           .toLowerCase()
           .includes("multimodal")
       ).length,
@@ -315,7 +341,7 @@ export default function Overview() {
   const llmCount = useMemo(
     () =>
       filtered.filter(r =>
-        String(getField(r, "MODEL_TYPE") || "")
+        String(getField(r, "FOUNDATIONAL_MODEL") || "")
           .toLowerCase()
           .includes("llm")
       ).length,
@@ -422,6 +448,7 @@ export default function Overview() {
     </div>
   );
 }
+
 
 
 
