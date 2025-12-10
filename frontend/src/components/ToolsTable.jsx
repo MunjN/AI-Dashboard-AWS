@@ -734,7 +734,6 @@
 //   );
 // }
 
-
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import Cookies from "js-cookie";
@@ -761,8 +760,16 @@ function toList(val) {
   return [String(val).trim()];
 }
 
+function normalizeUrl(u) {
+  if (!u) return null;
+  const s = String(u).trim();
+  if (!s) return null;
+  // if missing scheme, add https://
+  if (!/^https?:\/\//i.test(s)) return `https://${s}`;
+  return s;
+}
+
 export default function ToolsTable({ rows, data, view = "tech" }) {
-  // accept either prop name
   const baseRows = useMemo(() => {
     const r = rows ?? data ?? [];
     return Array.isArray(r) ? r : [];
@@ -800,7 +807,6 @@ export default function ToolsTable({ rows, data, view = "tech" }) {
     loadCredits();
   }, []);
 
-  // search filter
   const filteredRows = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return baseRows;
@@ -1106,7 +1112,14 @@ export default function ToolsTable({ rows, data, view = "tech" }) {
                 r.fundingType ??
                 "—";
 
-              const toolUrl = `/tool/${encodeURIComponent(id)}`;
+              // ✅ external site for tool name
+              const websiteUrl = normalizeUrl(
+                getField(r, "WEBSITE") ??
+                  getField(r, "TOOL_WEBSITE") ??
+                  getField(r, "URL")
+              );
+
+              const toolInternalUrl = `/tool/${encodeURIComponent(id)}`;
 
               return (
                 <tr
@@ -1122,14 +1135,25 @@ export default function ToolsTable({ rows, data, view = "tech" }) {
                     />
                   </td>
 
-                  {/* ✅ Name now links to tool page */}
+                  {/* ✅ Name links to external website if present */}
                   <td className="p-2 font-semibold text-me-ink">
-                    <Link
-                      to={toolUrl}
-                      className="hover:underline hover:text-me-orange transition"
-                    >
-                      {name}
-                    </Link>
+                    {websiteUrl ? (
+                      <a
+                        href={websiteUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="hover:underline hover:text-me-orange transition"
+                      >
+                        {name}
+                      </a>
+                    ) : (
+                      <Link
+                        to={toolInternalUrl}
+                        className="hover:underline hover:text-me-orange transition"
+                      >
+                        {name}
+                      </Link>
+                    )}
                   </td>
 
                   <td className="p-2 text-me-text">{aiType}</td>
@@ -1154,9 +1178,10 @@ export default function ToolsTable({ rows, data, view = "tech" }) {
                     </>
                   )}
 
+                  {/* keep internal details link */}
                   <td className="p-2">
                     <Link
-                      to={toolUrl}
+                      to={toolInternalUrl}
                       className="text-me-ink hover:text-me-orange font-semibold"
                     >
                       View →
