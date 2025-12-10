@@ -79,46 +79,39 @@ import FilterModal from "../components/FilterModal.jsx";
 import BookmarkModal from "../components/BookmarkModal.jsx";
 import ToolsTable from "../components/ToolsTable.jsx";
 import BarBlock from "../components/charts/BarBlock.jsx";
+
 import { useData } from "../context/DataContext.jsx";
 import { useFilters } from "../context/FiltersContext.jsx";
 import applyFilters from "../lib/applyFilters.js";
 
+import { countByMulti, toChartData } from "../lib/aggregate.js";
+
 /**
- * Local multi-aggregate for comma-separated / array fields like TASKS.
- * Handles:
- *  - string: "Edit, Create Sound"
- *  - array: ["Edit", "Create Sound"]
- *  - _raw fallback
+ * Utility: get a field from row OR row._raw, supporting case + snake fallback.
  */
-function aggregateMultiLocal(rows, field) {
-  const counts = new Map();
+function getField(r, field) {
+  const direct = r?.[field];
+  const raw =
+    r?._raw?.[field] ??
+    r?._raw?.[field?.toLowerCase()] ??
+    r?._raw?.[field?.toUpperCase()] ??
+    null;
 
-  for (const r of rows) {
-    if (!r) continue;
+  return direct ?? raw;
+}
 
-    const direct = r[field];
-    const raw =
-      r?._raw?.[field] ??
-      r?._raw?.[field?.toLowerCase()] ??
-      null;
-
-    const val = direct ?? raw;
-
-    let items = [];
-    if (Array.isArray(val)) {
-      items = val;
-    } else if (typeof val === "string") {
-      items = val.split(",").map(s => s.trim()).filter(Boolean);
-    }
-
-    for (const it of items) {
-      counts.set(it, (counts.get(it) || 0) + 1);
-    }
+/**
+ * Normalize multi-value fields:
+ * - array => as-is
+ * - string comma-separated => split
+ */
+function getMultiList(r, field) {
+  const val = getField(r, field);
+  if (Array.isArray(val)) return val.filter(Boolean).map(v => String(v).trim()).filter(Boolean);
+  if (typeof val === "string") {
+    return val.split(",").map(s => s.trim()).filter(Boolean);
   }
-
-  return Array.from(counts.entries())
-    .map(([key, count]) => ({ key, count }))
-    .sort((a, b) => b.count - a.count);
+  return [];
 }
 
 export default function Details() {
@@ -133,11 +126,11 @@ export default function Details() {
     [tools, filters]
   );
 
-  // Big chart ONLY on Details
-  const taskAgg = useMemo(
-    () => aggregateMultiLocal(filtered, "TASKS"),
-    [filtered]
-  );
+  // Big chart ONLY on Details: Tools by Task (multi-count)
+  const taskAgg = useMemo(() => {
+    const map = countByMulti(filtered, r => getMultiList(r, "TASKS"));
+    return toChartData(map, "key").sort((a, b) => b.count - a.count);
+  }, [filtered]);
 
   return (
     <div className="flex w-full min-h-screen bg-[#f6f8fb]">
@@ -178,6 +171,7 @@ export default function Details() {
     </div>
   );
 }
+
 
 
 
