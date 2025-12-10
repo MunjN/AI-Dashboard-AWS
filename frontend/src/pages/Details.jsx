@@ -102,6 +102,14 @@ export default function Details() {
   if (loading) return <div className="p-6">Loading…</div>;
   if (error) return <div className="p-6 text-me-orange">{error}</div>;
 
+  // ✅ TOP CHART: Tools by Task (multi-count from tasks array)
+  const toolsByTask = useMemo(() => {
+    const map = countByMulti(filtered, r => r.tasks || []);
+    const data = toChartData(map, { keyName: "key" });
+    // sort descending so biggest tasks are leftmost
+    return [...data].sort((a, b) => b.count - a.count);
+  }, [filtered]);
+
   return (
     <div className="min-h-screen bg-me-bg px-6 pt-6 flex items-start gap-6">
       <LeftRail
@@ -114,14 +122,19 @@ export default function Details() {
       />
 
       <div className="flex-1">
-        <div className="grid grid-cols-2 gap-6">
+        {/* ✅ big Tools by Task chart */}
+        <div className="bg-white rounded-md p-8 shadow-me border border-me-border">
+          <h2 className="text-[20px] font-bold text-me-ink mb-6">
+            Tools by Task
+          </h2>
+
           <BarBlock
-            title="AI Type"
-            data={toChartData(countByMulti(filtered, r => [r.aiType]))}
-          />
-          <BarBlock
-            title="Software Type"
-            data={toChartData(countByMulti(filtered, r => [r.softwareType]))}
+            title=""
+            data={toolsByTask}
+            xKey="key"
+            filterKey="tasks"
+            height={360}
+            horizontalLabels={false}
           />
         </div>
 
@@ -138,3 +151,5 @@ export default function Details() {
     </div>
   );
 }
+
+
