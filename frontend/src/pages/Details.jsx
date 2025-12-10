@@ -151,6 +151,11 @@ export default function Details() {
   const [showFilters, setShowFilters] = useState(false);
   const [showBookmarks, setShowBookmarks] = useState(false);
 
+  // ✅ restore Tech/Biz switch state
+  const [tableView, setTableView] = useState("tech"); // "tech" | "biz"
+  const onSwitchView = () =>
+    setTableView(v => (v === "tech" ? "biz" : "tech"));
+
   const toolsArr = useMemo(() => (Array.isArray(tools) ? tools : []), [tools]);
 
   const filtered = useMemo(
@@ -169,6 +174,16 @@ export default function Details() {
       <LeftRail
         onOpenFilters={() => setShowFilters(true)}
         onOpenBookmarks={() => setShowBookmarks(true)}
+        onSwitchView={onSwitchView}
+        viewLabel={tableView === "tech" ? "Technology View" : "Business View"}
+        infraCount={filtered.length}
+        parentOrgCount={
+          new Set(
+            filtered
+              .map(r => getField(r, "PARENT_ORGANIZATION"))
+              .filter(Boolean)
+          ).size
+        }
       />
 
       <div className="flex-1 p-6">
@@ -192,13 +207,15 @@ export default function Details() {
         {/* Table */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4">
           <div className="text-lg font-semibold text-[#232073] mb-2">
-            Technology &amp; Capability
+            {tableView === "tech"
+              ? "Technology & Capability"
+              : "Business & Organization"}
           </div>
 
           {loading || !toolsArr.length ? (
             <div className="text-gray-500">Loading…</div>
           ) : (
-            <ToolsTable data={filtered} />
+            <ToolsTable data={filtered} view={tableView} />
           )}
         </div>
       </div>
@@ -212,6 +229,7 @@ export default function Details() {
     </div>
   );
 }
+
 
 
 
