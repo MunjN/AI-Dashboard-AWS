@@ -82,10 +82,9 @@ import BarBlock from "../components/charts/BarBlock.jsx";
 
 import { useData } from "../context/DataContext.jsx";
 import { useFilters } from "../context/FiltersContext.jsx";
-import applyFilters from "../lib/applyFilters.js";
-
 import { countByMulti, toChartData } from "../lib/aggregate.js";
 
+/** field getter with raw fallback (keeps things safe) */
 function getField(r, field) {
   const direct = r?.[field];
   const lower = r?.[field?.toLowerCase()];
@@ -96,11 +95,53 @@ function getField(r, field) {
   return direct ?? lower ?? raw ?? null;
 }
 
-function getMultiList(r, field) {
-  const val = getField(r, field);
-  if (Array.isArray(val)) return val.filter(Boolean).map(v => String(v).trim()).filter(Boolean);
-  if (typeof val === "string") return val.split(",").map(s => s.trim()).filter(Boolean);
-  return [];
+function toList(val) {
+  if (Array.isArray(val)) return val.map(v => String(v).trim()).filter(Boolean);
+  if (typeof val === "string")
+    return val.split(",").map(s => s.trim()).filter(Boolean);
+  if (val == null || val === "") return [];
+  return [String(val).trim()];
+}
+
+/** Local filters that match your CSV schema */
+function localApplyFilters(rows, filters) {
+  const f = filters || {};
+  const listFilter = (key, rowField) => {
+    const selected = Array.isArray(f[key]) ? f[key] : [];
+    if (!selected.length) return true;
+    const rowVals = toList(getField(rowField.row, rowField.col));
+    return rowVals.some(v => selected.includes(v));
+  };
+  const singleFilter = (key, col) => {
+    const v = f[key];
+    if (!v) return true;
+    const rowVal = String(getField(col.row, col.col) || "").trim();
+    return rowVal.toUpperCase() === String(v).trim().toUpperCase();
+  };
+
+  return rows.filter(row => {
+    // Multi-selects
+    if (!listFilter("softwareType", { row, col: "SOFTWARE_TYPE" })) return false;
+    if (!listFilter("expectedInput", { row, col: "EXPECTED_INPUT" })) return false;
+    if (!listFilter("generatedOutput", { row, col: "GENERATED_OUTPUT" })) return false;
+    if (!listFilter("modelType", { row, col: "MODEL_PRIVATE_OR_PUBLIC" })) return false;
+    if (!listFilter("foundationalModel", { row, col: "FOUNDATIONAL_MODEL" })) return false;
+    if (!listFilter("inferenceLocation", { row, col: "INFERENCE_LOCATION" })) return false;
+    if (!listFilter("tasks", { row, col: "TASKS" })) return false;
+    if (!listFilter("toolName", { row, col: "NAME" })) return false;
+
+    if (!listFilter("parentOrg", { row, col: "PARENT_ORGANIZATION" })) return false;
+    if (!listFilter("orgMaturity", { row, col: "ORGANIZATION_MATURITY" })) return false;
+    if (!listFilter("fundingType", { row, col: "FUNDING" })) return false;
+    if (!listFilter("businessModel", { row, col: "BUSINESS_MODEL" })) return false;
+    if (!listFilter("ipCreationPotential", { row, col: "POTENTIAL_FOR_IP" })) return false;
+
+    // Single selects
+    if (!singleFilter("legalCasePending", { row, col: "LEGAL_CASE_PENDING" })) return false;
+    if (!singleFilter("hasApi", { row, col: "HAS_API" })) return false;
+
+    return true;
+  });
 }
 
 export default function Details() {
@@ -112,13 +153,13 @@ export default function Details() {
 
   const toolsArr = useMemo(() => (Array.isArray(tools) ? tools : []), [tools]);
 
-  const filtered = useMemo(() => {
-    const out = applyFilters(toolsArr, filters);
-    return Array.isArray(out) ? out : [];
-  }, [toolsArr, filters]);
+  const filtered = useMemo(
+    () => localApplyFilters(toolsArr, filters),
+    [toolsArr, filters]
+  );
 
   const taskAgg = useMemo(() => {
-    const map = countByMulti(filtered, r => getMultiList(r, "TASKS"));
+    const map = countByMulti(filtered, r => toList(getField(r, "TASKS")));
     const chart = toChartData(map, "key");
     return Array.isArray(chart) ? chart.sort((a, b) => b.count - a.count) : [];
   }, [filtered]);
@@ -131,6 +172,7 @@ export default function Details() {
       />
 
       <div className="flex-1 p-6">
+        {/* Big chart */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 mb-6">
           {loading || !toolsArr.length ? (
             <div className="text-gray-500">Loading…</div>
@@ -147,6 +189,7 @@ export default function Details() {
           )}
         </div>
 
+        {/* Table */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4">
           <div className="text-lg font-semibold text-[#232073] mb-2">
             Technology &amp; Capability
