@@ -298,7 +298,6 @@
 //   URL.revokeObjectURL(url);
 // }
 
-
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import Cookies from "js-cookie";
@@ -311,16 +310,36 @@ export default function ToolsTable({ rows = [], view = "tech" }) {
   const [msg, setMsg] = useState("");
   const [exporting, setExporting] = useState(false);
 
+  // ✅ NEW: search state
+  const [query, setQuery] = useState("");
+
   useEffect(() => {
     setSelectedIds([]);
     setMsg("");
   }, [rows]);
 
+  // ✅ NEW: filter rows by search query
+  const filteredRows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return rows;
+
+    return rows.filter(r => {
+      const name = (r.infraName || r.toolName || "").toLowerCase();
+      const parent = (r.parentOrg || "").toLowerCase();
+      const aiType = (r.aiType || "").toLowerCase();
+      return (
+        name.includes(q) ||
+        parent.includes(q) ||
+        aiType.includes(q)
+      );
+    });
+  }, [rows, query]);
+
   const allIdsOnPage = useMemo(() => {
-    return rows
+    return filteredRows
       .map(r => r?._raw?.INFRA_ID || r?._raw?.infra_id || r?.infraId)
       .filter(Boolean);
-  }, [rows]);
+  }, [filteredRows]);
 
   const cappedIdsOnPage = useMemo(
     () => allIdsOnPage.slice(0, MAX_SELECT),
@@ -408,8 +427,9 @@ export default function ToolsTable({ rows = [], view = "tech" }) {
 
   return (
     <div className="w-full">
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-3 text-sm">
+      {/* Top controls row */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3">
+        <div className="flex items-center gap-3 text-sm flex-wrap">
           <label className="flex items-center gap-2">
             <input
               type="checkbox"
@@ -441,6 +461,21 @@ export default function ToolsTable({ rows = [], view = "tech" }) {
         </div>
       </div>
 
+      {/* ✅ NEW: search bar */}
+      <div className="mb-3">
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search tools by name, parent org, or AI type…"
+          className="w-full md:w-[420px] px-3 py-2 rounded-md border border-me-border bg-white shadow-me outline-none focus:ring-2 focus:ring-me-sky-strong"
+        />
+        {query.trim() && (
+          <div className="text-xs text-me-text mt-1">
+            Showing {filteredRows.length} of {rows.length}
+          </div>
+        )}
+      </div>
+
       {msg && <div className="text-sm mb-3 text-me-orange">{msg}</div>}
 
       <div className="overflow-x-auto border border-me-border rounded-md bg-white shadow-me">
@@ -470,7 +505,7 @@ export default function ToolsTable({ rows = [], view = "tech" }) {
           </thead>
 
           <tbody>
-            {rows.map((r, i) => {
+            {filteredRows.map((r, i) => {
               const id = r?._raw?.INFRA_ID || r?.infraId || i;
               const checked = selectedIds.includes(id);
 
@@ -538,10 +573,10 @@ export default function ToolsTable({ rows = [], view = "tech" }) {
               );
             })}
 
-            {!rows.length && (
+            {!filteredRows.length && (
               <tr>
                 <td colSpan={9} className="p-4 text-me-text">
-                  No tools match your filters.
+                  No tools match your search/filters.
                 </td>
               </tr>
             )}
@@ -551,5 +586,7 @@ export default function ToolsTable({ rows = [], view = "tech" }) {
     </div>
   );
 }
+
+
 
 
