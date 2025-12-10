@@ -212,7 +212,7 @@ import VennBlock from "../components/VennBlock.jsx";
 import { useData } from "../context/DataContext.jsx";
 import { useFilters } from "../context/FiltersContext.jsx";
 import applyFilters from "../lib/applyFilters.js";
-import { aggregate, aggregateMulti, aggregateByYear } from "../lib/aggregate.js";
+import { aggregate, aggregateByYear } from "../lib/aggregate.js";
 
 export default function Overview() {
   const { tools, loading } = useData();
@@ -221,7 +221,10 @@ export default function Overview() {
   const [showFilters, setShowFilters] = useState(false);
   const [showBookmarks, setShowBookmarks] = useState(false);
 
-  const filtered = useMemo(() => applyFilters(tools || [], filters), [tools, filters]);
+  const filtered = useMemo(
+    () => applyFilters(tools || [], filters),
+    [tools, filters]
+  );
 
   // Aggregations for Overview visuals
   const fundingAgg = useMemo(() => aggregate(filtered, "FUNDING_TYPE"), [filtered]);
@@ -229,20 +232,42 @@ export default function Overview() {
   const inferenceAgg = useMemo(() => aggregate(filtered, "INFERENCE_LOCATION"), [filtered]);
   const ipAgg = useMemo(() => aggregate(filtered, "IP_CREATION_POTENTIAL"), [filtered]);
 
-  const toolsLaunchedAgg = useMemo(() => aggregateByYear(filtered, "YEAR_LAUNCHED"), [filtered]);
-  const companiesFoundedAgg = useMemo(() => aggregateByYear(filtered, "YEAR_COMPANY_FOUNDED"), [filtered]);
+  const toolsLaunchedAgg = useMemo(
+    () => aggregateByYear(filtered, "YEAR_LAUNCHED"),
+    [filtered]
+  );
+  const companiesFoundedAgg = useMemo(
+    () => aggregateByYear(filtered, "YEAR_COMPANY_FOUNDED"),
+    [filtered]
+  );
 
-  // Example venn buckets (if your data keys differ, just adjust here)
+  // Simple capability snapshot venn
   const hasApiCount = useMemo(
-    () => filtered.filter(t => (t?.HAS_API ?? t?._raw?.HAS_API ?? t?._raw?.has_api) === true).length,
+    () =>
+      filtered.filter(t => {
+        const v = t?.HAS_API ?? t?._raw?.HAS_API ?? t?._raw?.has_api;
+        return v === true || v === "YES";
+      }).length,
     [filtered]
   );
+
   const multimodalCount = useMemo(
-    () => filtered.filter(t => (t?.MODEL_TYPE ?? "").toLowerCase().includes("multimodal")).length,
+    () =>
+      filtered.filter(t =>
+        String(t?.MODEL_TYPE ?? t?._raw?.MODEL_TYPE ?? "")
+          .toLowerCase()
+          .includes("multimodal")
+      ).length,
     [filtered]
   );
+
   const llmCount = useMemo(
-    () => filtered.filter(t => (t?.MODEL_TYPE ?? "").toLowerCase().includes("llm")).length,
+    () =>
+      filtered.filter(t =>
+        String(t?.MODEL_TYPE ?? t?._raw?.MODEL_TYPE ?? "")
+          .toLowerCase()
+          .includes("llm")
+      ).length,
     [filtered]
   );
 
@@ -326,7 +351,7 @@ export default function Overview() {
               />
             </div>
 
-            {/* Row 4 (Venn / capability summary) */}
+            {/* Row 4 */}
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 xl:col-span-2">
               <VennBlock
                 title="Model / API Capability Snapshot"
@@ -346,6 +371,7 @@ export default function Overview() {
     </div>
   );
 }
+
 
 
 
