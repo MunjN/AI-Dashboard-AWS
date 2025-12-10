@@ -317,7 +317,7 @@ export default function ToolsTable({ rows = [], view = "tech" }) {
     setMsg("");
   }, [rows]);
 
-  // ✅ NEW: try to load credits on first view (safe if 404)
+  // ✅ load credits on first view (safe if 404)
   useEffect(() => {
     async function loadCredits() {
       try {
@@ -417,7 +417,7 @@ export default function ToolsTable({ rows = [], view = "tech" }) {
         return;
       }
 
-      // ✅ NEW: if backend returns JSON with exportsLeft, capture it
+      // ✅ if backend returns JSON with exportsLeft, capture it
       let parsedJson = null;
       try {
         parsedJson = JSON.parse(text);
@@ -558,13 +558,19 @@ export default function ToolsTable({ rows = [], view = "tech" }) {
               const id = r?._raw?.INFRA_ID || r?.infraId || i;
               const checked = selectedIds.includes(id);
 
-              // ✅ FIX: fallback to CSV truth for HAS_API
+              // ✅ FIXED precedence:
+              // if CSV raw says YES/NO, trust that over backend boolean
+              const rawHasApi =
+                String(r?._raw?.HAS_API || "")
+                  .toUpperCase()
+                  .trim();
+
               const hasApiBool =
-                typeof r.hasApi === "boolean"
+                rawHasApi
+                  ? rawHasApi === "YES"
+                  : typeof r.hasApi === "boolean"
                   ? r.hasApi
-                  : String(r?._raw?.HAS_API || "")
-                      .toUpperCase()
-                      .trim() === "YES";
+                  : false;
 
               return (
                 <tr
@@ -643,6 +649,7 @@ export default function ToolsTable({ rows = [], view = "tech" }) {
     </div>
   );
 }
+
 
 
 
