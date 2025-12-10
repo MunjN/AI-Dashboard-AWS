@@ -86,9 +86,6 @@ import applyFilters from "../lib/applyFilters.js";
 
 import { countByMulti, toChartData } from "../lib/aggregate.js";
 
-/**
- * Utility: get a field from row OR row._raw, supporting case fallback.
- */
 function getField(r, field) {
   const direct = r?.[field];
   const raw =
@@ -100,11 +97,6 @@ function getField(r, field) {
   return direct ?? raw;
 }
 
-/**
- * Normalize multi-value fields:
- * - array => as-is
- * - string comma-separated => split
- */
 function getMultiList(r, field) {
   const val = getField(r, field);
   if (Array.isArray(val)) {
@@ -123,7 +115,6 @@ export default function Details() {
   const [showFilters, setShowFilters] = useState(false);
   const [showBookmarks, setShowBookmarks] = useState(false);
 
-  // HARD guard: tools must be an array, always.
   const toolsArr = useMemo(
     () => (Array.isArray(tools) ? tools : []),
     [tools]
@@ -148,7 +139,6 @@ export default function Details() {
       />
 
       <div className="flex-1 p-6">
-        {/* Big chart */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 mb-6">
           {loading || !toolsArr.length ? (
             <div className="text-gray-500">Loading…</div>
@@ -165,7 +155,6 @@ export default function Details() {
           )}
         </div>
 
-        {/* Table */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4">
           <div className="text-lg font-semibold text-[#232073] mb-2">
             Technology &amp; Capability
@@ -179,11 +168,17 @@ export default function Details() {
         </div>
       </div>
 
-      <FilterModal open={showFilters} onClose={() => setShowFilters(false)} />
+      <FilterModal
+        open={showFilters}
+        onClose={() => setShowFilters(false)}
+        allRows={toolsArr}
+      />
       <BookmarkModal open={showBookmarks} onClose={() => setShowBookmarks(false)} />
     </div>
   );
 }
+
+
 
 
 
