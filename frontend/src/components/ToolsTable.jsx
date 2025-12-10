@@ -325,7 +325,7 @@ function toList(val) {
 }
 
 export default function ToolsTable({ rows, data, view = "tech" }) {
-  // ✅ accept either prop name
+  // accept either prop name
   const baseRows = useMemo(() => {
     const r = rows ?? data ?? [];
     return Array.isArray(r) ? r : [];
@@ -337,13 +337,11 @@ export default function ToolsTable({ rows, data, view = "tech" }) {
   const [exporting, setExporting] = useState(false);
   const [query, setQuery] = useState("");
 
-  // reset selection when filters/data change
   useEffect(() => {
     setSelectedIds([]);
     setMsg("");
   }, [baseRows]);
 
-  // load credits on first view (safe if 404)
   useEffect(() => {
     async function loadCredits() {
       try {
@@ -360,14 +358,12 @@ export default function ToolsTable({ rows, data, view = "tech" }) {
         if (typeof json?.exportsLeft === "number") {
           setCreditsLeft(json.exportsLeft);
         }
-      } catch {
-        // silent
-      }
+      } catch {}
     }
     loadCredits();
   }, []);
 
-  // ✅ search filter (upper + camel fallback)
+  // search filter
   const filteredRows = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return baseRows;
@@ -422,11 +418,7 @@ export default function ToolsTable({ rows, data, view = "tech" }) {
   }, [cappedIdsOnPage, selectedIds]);
 
   function toggleAllCapped() {
-    if (isSelectingAllCapped) {
-      setSelectedIds([]);
-    } else {
-      setSelectedIds(cappedIdsOnPage);
-    }
+    setSelectedIds(isSelectingAllCapped ? [] : cappedIdsOnPage);
   }
 
   function toggleOne(id) {
@@ -580,8 +572,11 @@ export default function ToolsTable({ rows, data, view = "tech" }) {
               <th className="p-2 w-10"></th>
               <th className="p-2 text-left">Name</th>
               <th className="p-2 text-left">AI Type</th>
+
               {view === "tech" ? (
                 <>
+                  <th className="p-2 text-left">Expected Input</th>
+                  <th className="p-2 text-left">Generated Output</th>
                   <th className="p-2 text-left">Tasks</th>
                   <th className="p-2 text-left">Inference Location</th>
                   <th className="p-2 text-left">Model Type</th>
@@ -595,6 +590,7 @@ export default function ToolsTable({ rows, data, view = "tech" }) {
                   <th className="p-2 text-left">Funding</th>
                 </>
               )}
+
               <th className="p-2 text-left w-16">Details</th>
             </tr>
           </thead>
@@ -632,6 +628,12 @@ export default function ToolsTable({ rows, data, view = "tech" }) {
                 getField(r, "AI_TYPE") ??
                 r.aiType ??
                 "—";
+
+              const expectedInput =
+                toList(getField(r, "EXPECTED_INPUT")).join(", ") || "—";
+
+              const generatedOutput =
+                toList(getField(r, "GENERATED_OUTPUT")).join(", ") || "—";
 
               const tasks =
                 toList(getField(r, "TASKS") ?? r.tasks).join(", ") || "—";
@@ -686,6 +688,8 @@ export default function ToolsTable({ rows, data, view = "tech" }) {
 
                   {view === "tech" ? (
                     <>
+                      <td className="p-2 text-me-text">{expectedInput}</td>
+                      <td className="p-2 text-me-text">{generatedOutput}</td>
                       <td className="p-2 text-me-text">{tasks}</td>
                       <td className="p-2 text-me-text">{inference}</td>
                       <td className="p-2 text-me-text">{modelType}</td>
@@ -716,7 +720,7 @@ export default function ToolsTable({ rows, data, view = "tech" }) {
 
             {!filteredRows.length && (
               <tr>
-                <td colSpan={9} className="p-4 text-me-text">
+                <td colSpan={view === "tech" ? 11 : 9} className="p-4 text-me-text">
                   No tools match your search/filters.
                 </td>
               </tr>
@@ -727,6 +731,7 @@ export default function ToolsTable({ rows, data, view = "tech" }) {
     </div>
   );
 }
+
 
 
 
