@@ -82,7 +82,44 @@ import BarBlock from "../components/charts/BarBlock.jsx";
 import { useData } from "../context/DataContext.jsx";
 import { useFilters } from "../context/FiltersContext.jsx";
 import applyFilters from "../lib/applyFilters.js";
-import { aggregateMulti } from "../lib/aggregate.js";
+
+/**
+ * Local multi-aggregate for comma-separated / array fields like TASKS.
+ * Handles:
+ *  - string: "Edit, Create Sound"
+ *  - array: ["Edit", "Create Sound"]
+ *  - _raw fallback
+ */
+function aggregateMultiLocal(rows, field) {
+  const counts = new Map();
+
+  for (const r of rows) {
+    if (!r) continue;
+
+    const direct = r[field];
+    const raw =
+      r?._raw?.[field] ??
+      r?._raw?.[field?.toLowerCase()] ??
+      null;
+
+    const val = direct ?? raw;
+
+    let items = [];
+    if (Array.isArray(val)) {
+      items = val;
+    } else if (typeof val === "string") {
+      items = val.split(",").map(s => s.trim()).filter(Boolean);
+    }
+
+    for (const it of items) {
+      counts.set(it, (counts.get(it) || 0) + 1);
+    }
+  }
+
+  return Array.from(counts.entries())
+    .map(([key, count]) => ({ key, count }))
+    .sort((a, b) => b.count - a.count);
+}
 
 export default function Details() {
   const { tools, loading } = useData();
@@ -91,11 +128,14 @@ export default function Details() {
   const [showFilters, setShowFilters] = useState(false);
   const [showBookmarks, setShowBookmarks] = useState(false);
 
-  const filtered = useMemo(() => applyFilters(tools || [], filters), [tools, filters]);
+  const filtered = useMemo(
+    () => applyFilters(tools || [], filters),
+    [tools, filters]
+  );
 
-  // Big chart: Tools by Task
+  // Big chart ONLY on Details
   const taskAgg = useMemo(
-    () => aggregateMulti(filtered, "TASKS"),
+    () => aggregateMultiLocal(filtered, "TASKS"),
     [filtered]
   );
 
@@ -107,7 +147,7 @@ export default function Details() {
       />
 
       <div className="flex-1 p-6">
-        {/* Big chart ONLY on Details */}
+        {/* Big chart */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 mb-6">
           {loading ? (
             <div className="text-gray-500">Loading…</div>
@@ -138,6 +178,8 @@ export default function Details() {
     </div>
   );
 }
+
+
 
 
 
