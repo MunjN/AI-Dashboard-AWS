@@ -213,15 +213,8 @@ import { useData } from "../context/DataContext.jsx";
 import { useFilters } from "../context/FiltersContext.jsx";
 import applyFilters from "../lib/applyFilters.js";
 
-import {
-  countBy,
-  countUniqueBy,
-  toChartData
-} from "../lib/aggregate.js";
+import { countBy, countUniqueBy, toChartData } from "../lib/aggregate.js";
 
-/**
- * Utility: get a field from row OR row._raw, supporting case fallback.
- */
 function getField(r, field) {
   const direct = r?.[field];
   const raw =
@@ -233,10 +226,6 @@ function getField(r, field) {
   return direct ?? raw;
 }
 
-/**
- * Normalize to a single string key for counting.
- * If array, join items with ", " so it’s still a stable key.
- */
 function getSingleKey(r, field) {
   const val = getField(r, field);
   if (Array.isArray(val)) {
@@ -254,7 +243,6 @@ export default function Overview() {
   const [showFilters, setShowFilters] = useState(false);
   const [showBookmarks, setShowBookmarks] = useState(false);
 
-  // HARD guard: tools must be an array always.
   const toolsArr = useMemo(
     () => (Array.isArray(tools) ? tools : []),
     [tools]
@@ -265,7 +253,6 @@ export default function Overview() {
     return Array.isArray(out) ? out : [];
   }, [toolsArr, filters]);
 
-  // Aggregations (all return [] if anything weird happens)
   const fundingAgg = useMemo(() => {
     const map = countUniqueBy(
       filtered,
@@ -310,7 +297,6 @@ export default function Overview() {
     return Array.isArray(chart) ? chart : [];
   }, [filtered]);
 
-  // Snapshot venn counts
   const hasApiCount = useMemo(
     () =>
       filtered.filter(r => {
@@ -357,7 +343,6 @@ export default function Overview() {
           <div className="text-gray-500">Loading…</div>
         ) : (
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            {/* Row 1 */}
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
               <BarBlock
                 title="Provider Orgs - Types of Funding"
@@ -378,7 +363,6 @@ export default function Overview() {
               />
             </div>
 
-            {/* Row 2 */}
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
               <LineBlock
                 title="Tools Launched by Year"
@@ -399,7 +383,6 @@ export default function Overview() {
               />
             </div>
 
-            {/* Row 3 */}
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
               <PieBlock
                 title="IP Creation Potential"
@@ -420,7 +403,6 @@ export default function Overview() {
               />
             </div>
 
-            {/* Row 4 */}
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 xl:col-span-2">
               <VennBlock
                 title="Model / API Capability Snapshot"
@@ -435,13 +417,15 @@ export default function Overview() {
         )}
       </div>
 
-      <FilterModal open={showFilters} onClose={() => setShowFilters(false)} />
+      <FilterModal
+        open={showFilters}
+        onClose={() => setShowFilters(false)}
+        allRows={toolsArr}
+      />
       <BookmarkModal open={showBookmarks} onClose={() => setShowBookmarks(false)} />
     </div>
   );
 }
-
-
 
 
 
