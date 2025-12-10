@@ -213,6 +213,26 @@ import BarBlock from "../components/charts/BarBlock.jsx";
 import LineBlock from "../components/charts/LineBlock.jsx";
 import ChartCard from "../components/charts/ChartCard.jsx";
 
+/** ME-DMZ / FX-DMZ chart palette (matches your HTML mock) */
+const CHART_COLORS = [
+  "#3AA608", // green
+  "#F2C53D", // yellow
+  "#D97218", // orange
+  "#232073", // deep blue
+  "#CEECF2", // light blue
+  "#747474", // grey
+  "#D9D9D9"  // light grey
+];
+
+// Helper: robust task extraction from live rows
+function getTasksArray(r) {
+  if (Array.isArray(r.tasks)) return r.tasks.filter(Boolean);
+  if (typeof r.tasks === "string") {
+    return r.tasks.split(",").map(t => t.trim()).filter(Boolean);
+  }
+  return [];
+}
+
 export default function Overview() {
   const { tools, loading, error } = useData();
   const { filters } = useFilters();
@@ -240,6 +260,13 @@ export default function Overview() {
   const softwareData = toChartData(countByMulti(filtered, r => [r.softwareType]));
   const maturityData = toChartData(countByMulti(filtered, r => [r.orgMaturity]));
 
+  // ✅ BIG TOP CHART: Tools by Task
+  const toolsByTaskData = useMemo(() => {
+    const counts = countByMulti(filtered, r => getTasksArray(r));
+    const data = toChartData(counts);
+    return data.sort((a, b) => b.count - a.count);
+  }, [filtered]);
+
   return (
     <div className="min-h-screen bg-me-bg flex items-start gap-6">
       <LeftRail
@@ -250,8 +277,8 @@ export default function Overview() {
       />
 
       <main className="flex-1 px-8 pt-8 pb-10">
-        {/* Header from design dump */}
-        <div className="mb-10">
+        {/* Header */}
+        <div className="mb-8">
           <h1 className="text-[48px] font-bold text-me-ink leading-tight">
             Overview
           </h1>
@@ -260,14 +287,27 @@ export default function Overview() {
           </p>
         </div>
 
-        {/* 2-col chart grid */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+        {/* ✅ Full-width Tools by Task chart (matches mock) */}
+        <ChartCard title="Tools by Task">
+          <BarBlock
+            title=""
+            data={toolsByTaskData}
+            xKey="key"
+            filterKey="tasks"
+            height={380}
+            horizontalLabels={false}
+            colors={CHART_COLORS}
+          />
+        </ChartCard>
+
+        {/* Rest of charts (2-col grid) */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 mt-8">
           <ChartCard title="Provider Orgs – Types of Funding" small>
-            <BarBlock title="" data={fundingData} />
+            <BarBlock title="" data={fundingData} colors={CHART_COLORS} />
           </ChartCard>
 
           <ChartCard title="Tools by Foundational Model" small>
-            <BarBlock title="" data={modelData} />
+            <BarBlock title="" data={modelData} colors={CHART_COLORS} />
           </ChartCard>
 
           <ChartCard title="Tools Launched by Year">
@@ -279,19 +319,19 @@ export default function Overview() {
           </ChartCard>
 
           <ChartCard title="IP Creation Potential" small>
-            <PieBlock title="" data={ipData} />
+            <PieBlock title="" data={ipData} colors={CHART_COLORS} />
           </ChartCard>
 
           <ChartCard title="Tools by Inference Location" small>
-            <BarBlock title="" data={inferenceData} />
+            <BarBlock title="" data={inferenceData} colors={CHART_COLORS} />
           </ChartCard>
 
           <ChartCard title="Tools by Software Type" small>
-            <PieBlock title="" data={softwareData} />
+            <PieBlock title="" data={softwareData} colors={CHART_COLORS} />
           </ChartCard>
 
           <ChartCard title="Providers by Maturity" small>
-            <PieBlock title="" data={maturityData} />
+            <PieBlock title="" data={maturityData} colors={CHART_COLORS} />
           </ChartCard>
         </div>
       </main>
@@ -308,4 +348,6 @@ export default function Overview() {
     </div>
   );
 }
+
+
 
