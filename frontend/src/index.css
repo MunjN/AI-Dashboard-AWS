@@ -1,28 +1,16 @@
-/* @tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-/* tiny defaults to feel like your PBI look */
-html, body, #root {
-  height: 100%;
-}
- */
-
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Global app look */
 html, body, #root {
   height: 100%;
   font-family: "azo-sans-web", sans-serif;
-  background: #F5F5F5; /* me-bg */
-  color: #232073;      /* me-ink */
+  background: #F5F5F5;
+  color: #232073;
 }
 
-/* Better default smoothing */
 body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
