@@ -87,7 +87,7 @@ import applyFilters from "../lib/applyFilters.js";
 import { countByMulti, toChartData } from "../lib/aggregate.js";
 
 /**
- * Utility: get a field from row OR row._raw, supporting case + snake fallback.
+ * Utility: get a field from row OR row._raw, supporting case fallback.
  */
 function getField(r, field) {
   const direct = r?.[field];
@@ -107,7 +107,9 @@ function getField(r, field) {
  */
 function getMultiList(r, field) {
   const val = getField(r, field);
-  if (Array.isArray(val)) return val.filter(Boolean).map(v => String(v).trim()).filter(Boolean);
+  if (Array.isArray(val)) {
+    return val.filter(Boolean).map(v => String(v).trim()).filter(Boolean);
+  }
   if (typeof val === "string") {
     return val.split(",").map(s => s.trim()).filter(Boolean);
   }
@@ -121,15 +123,21 @@ export default function Details() {
   const [showFilters, setShowFilters] = useState(false);
   const [showBookmarks, setShowBookmarks] = useState(false);
 
-  const filtered = useMemo(
-    () => applyFilters(tools || [], filters),
-    [tools, filters]
+  // HARD guard: tools must be an array, always.
+  const toolsArr = useMemo(
+    () => (Array.isArray(tools) ? tools : []),
+    [tools]
   );
 
-  // Big chart ONLY on Details: Tools by Task (multi-count)
+  const filtered = useMemo(() => {
+    const out = applyFilters(toolsArr, filters);
+    return Array.isArray(out) ? out : [];
+  }, [toolsArr, filters]);
+
   const taskAgg = useMemo(() => {
     const map = countByMulti(filtered, r => getMultiList(r, "TASKS"));
-    return toChartData(map, "key").sort((a, b) => b.count - a.count);
+    const chart = toChartData(map, "key");
+    return Array.isArray(chart) ? chart.sort((a, b) => b.count - a.count) : [];
   }, [filtered]);
 
   return (
@@ -142,7 +150,7 @@ export default function Details() {
       <div className="flex-1 p-6">
         {/* Big chart */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 mb-6">
-          {loading ? (
+          {loading || !toolsArr.length ? (
             <div className="text-gray-500">Loading…</div>
           ) : (
             <BarBlock
@@ -162,7 +170,12 @@ export default function Details() {
           <div className="text-lg font-semibold text-[#232073] mb-2">
             Technology &amp; Capability
           </div>
-          <ToolsTable data={filtered} />
+
+          {loading || !toolsArr.length ? (
+            <div className="text-gray-500">Loading…</div>
+          ) : (
+            <ToolsTable data={filtered} />
+          )}
         </div>
       </div>
 
@@ -171,6 +184,8 @@ export default function Details() {
     </div>
   );
 }
+
+
 
 
 
