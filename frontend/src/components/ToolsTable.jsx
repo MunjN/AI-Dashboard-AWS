@@ -1055,7 +1055,7 @@ export default function ToolsTable({ rows, data, view = "tech" }) {
 
               const hasApiBool =
                 rawHasApi
-                  ? rawHasApi === "true"
+                  ? rawHasApi === "YES"
                   : typeof r.hasApi === "boolean"
                   ? r.hasApi
                   : false;
@@ -1204,6 +1204,7 @@ export default function ToolsTable({ rows, data, view = "tech" }) {
     </div>
   );
 }
+
 
 
 
