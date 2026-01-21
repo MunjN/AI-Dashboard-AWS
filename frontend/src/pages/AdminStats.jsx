@@ -219,6 +219,7 @@
 
 import { useEffect, useState } from "react";
 import Cookies from "js-cookie";
+import { Link } from "react-router-dom";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
 
@@ -286,12 +287,12 @@ export default function AdminStats() {
 
         <div className="flex items-center gap-3">
           {/* ✅ NEW: Manage Tools button */}
-          <a
-            href="/#/admin/tools"
+          <Link
+            to="/admin/tools"
             className="inline-flex items-center justify-center rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-800"
           >
             Manage Tools
-          </a>
+          </Link>
 
           <a href="/" className="text-blue-700 hover:underline">
             ← Back to dashboard
