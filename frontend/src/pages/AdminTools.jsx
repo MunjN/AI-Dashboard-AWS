@@ -2339,7 +2339,7 @@ export default function AdminTools() {
               <input
                 value={q}
                 onChange={(e) => onChangeQ(e.target.value)}
-                placeholder="Type a name (Google-ish match)…"
+                placeholder="Search Existing AI Tools"
                 className="w-full px-4 py-2 rounded-lg bg-black/30 border border-white/10 focus:outline-none focus:ring-2 focus:ring-[#232073]"
               />
               <div className="mt-2 text-xs text-white/50">
