@@ -13,6 +13,29 @@ function authHeaders() {
   return t ? { Authorization: `Bearer ${t}` } : {};
 }
 
+/**
+ * Decode JWT payload (base64url) and return the email claim.
+ * No external deps needed.
+ */
+function getEmailFromIdToken() {
+  try {
+    const token = getIdToken();
+    if (!token) return "";
+    const parts = token.split(".");
+    if (parts.length < 2) return "";
+
+    // base64url -> base64
+    let payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    // pad to multiple of 4
+    while (payload.length % 4) payload += "=";
+
+    const json = JSON.parse(atob(payload));
+    return String(json?.email || "").trim();
+  } catch {
+    return "";
+  }
+}
+
 function isInternalEmail(email) {
   return String(email || "").toLowerCase().endsWith("@me-dmz.com");
 }
@@ -28,19 +51,19 @@ function clamp01(n) {
 
 function toList(x) {
   if (x == null) return [];
-  if (Array.isArray(x)) return x.map(v => String(v ?? "").trim()).filter(Boolean);
+  if (Array.isArray(x)) return x.map((v) => String(v ?? "").trim()).filter(Boolean);
   return [String(x).trim()].filter(Boolean);
 }
 
 function uniq(arr) {
-  return Array.from(new Set((arr || []).map(v => String(v ?? "").trim()).filter(Boolean)));
+  return Array.from(new Set((arr || []).map((v) => String(v ?? "").trim()).filter(Boolean)));
 }
 
 export default function AdminTools() {
   const navigate = useNavigate();
 
-  // Your app already stores userEmail in cookies via AuthContext
-  const userEmail = Cookies.get("userEmail") || "";
+  // ✅ Derive email from idToken instead of relying on a cookie that isn't set
+  const userEmail = getEmailFromIdToken();
   const isAdmin = isInternalEmail(userEmail);
 
   const [mode, setMode] = useState("create"); // "create" | "edit"
@@ -80,12 +103,12 @@ export default function AdminTools() {
     hasApi: "NO",
     yearCompanyFounded: "",
     yearLaunched: "",
-    funding: ""
+    funding: "",
   });
 
   const fundingDef = useMemo(() => {
     const defs = options?.fundingDefs || {};
-    return form.funding ? (defs[form.funding] || "") : "";
+    return form.funding ? defs[form.funding] || "" : "";
   }, [options, form.funding]);
 
   // Simple debounce for suggest
@@ -93,8 +116,8 @@ export default function AdminTools() {
 
   useEffect(() => {
     if (!isAdmin) {
-      // keep it simple: bounce to home
-      navigate("/");
+      // ✅ Cleaner target in your app than "/"
+      navigate("/details", { replace: true });
       return;
     }
   }, [isAdmin, navigate]);
@@ -105,7 +128,7 @@ export default function AdminTools() {
     try {
       const res = await fetch(`${API_BASE}/api/options`, {
         method: "GET",
-        headers: { ...authHeaders() }
+        headers: { ...authHeaders() },
       });
       const data = await res.json();
       if (!res.ok || !data?.ok) throw new Error(data?.error || "Failed to load options");
@@ -134,7 +157,7 @@ export default function AdminTools() {
     try {
       const res = await fetch(`${API_BASE}/api/tools/suggest?q=${encodeURIComponent(qq)}`, {
         method: "GET",
-        headers: { ...authHeaders() }
+        headers: { ...authHeaders() },
       });
       const data = await res.json();
       if (!res.ok || !data?.ok) throw new Error(data?.error || "Suggest failed");
@@ -164,7 +187,7 @@ export default function AdminTools() {
     try {
       const res = await fetch(`${API_BASE}/api/tool?infraId=${encodeURIComponent(selectedInfraId)}`, {
         method: "GET",
-        headers: { ...authHeaders() }
+        headers: { ...authHeaders() },
       });
       const data = await res.json();
       if (!res.ok || !data?.ok) throw new Error(data?.error || "Failed to load tool");
@@ -192,7 +215,7 @@ export default function AdminTools() {
         hasApi: (t.hasApi || "NO").toUpperCase(),
         yearCompanyFounded: t.yearCompanyFounded ?? "",
         yearLaunched: t.yearLaunched ?? "",
-        funding: t.fundingType || ""
+        funding: t.fundingType || "",
       });
     } catch (e) {
       setError(String(e?.message || e));
@@ -226,7 +249,7 @@ export default function AdminTools() {
       hasApi: "NO",
       yearCompanyFounded: "",
       yearLaunched: "",
-      funding: ""
+      funding: "",
     });
   }
 
@@ -241,17 +264,17 @@ export default function AdminTools() {
         forceCreate: mode === "create" ? !!forceCreate : undefined,
         data: {
           ...form,
-          fundingDef // (server will also auto-fill; this is mostly for UI parity)
-        }
+          fundingDef, // (server will also auto-fill; this is mostly for UI parity)
+        },
       };
 
       const res = await fetch(`${API_BASE}/api/tools/save`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...authHeaders()
+          ...authHeaders(),
         },
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
       });
 
       const data = await res.json().catch(() => ({}));
@@ -296,9 +319,9 @@ export default function AdminTools() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...authHeaders()
+          ...authHeaders(),
         },
-        body: JSON.stringify({ infraId })
+        body: JSON.stringify({ infraId }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.ok) throw new Error(data?.error || "Delete failed");
@@ -322,9 +345,11 @@ export default function AdminTools() {
     const n = clamp01(Number(s));
     const pct = Math.round(n * 100);
     const tone =
-      n >= 0.9 ? "bg-red-500/15 text-red-200 border-red-500/30" :
-      n >= 0.75 ? "bg-amber-500/15 text-amber-200 border-amber-500/30" :
-      "bg-white/10 text-white/70 border-white/15";
+      n >= 0.9
+        ? "bg-red-500/15 text-red-200 border-red-500/30"
+        : n >= 0.75
+          ? "bg-amber-500/15 text-amber-200 border-amber-500/30"
+          : "bg-white/10 text-white/70 border-white/15";
     return (
       <span className={classNames("text-xs px-2 py-0.5 rounded-full border", tone)}>
         {pct}%
@@ -340,13 +365,16 @@ export default function AdminTools() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <div className="text-sm text-white/60">
-              <Link to="/stats" className="hover:underline">Admin Stats</Link>
+              <Link to="/stats" className="hover:underline">
+                Admin Stats
+              </Link>
               <span className="mx-2">/</span>
               <span className="text-white/80">Tools</span>
             </div>
             <h1 className="text-2xl font-semibold mt-1">Manage Tools</h1>
             <p className="text-white/60 mt-1">
-              Create new infra tools or edit existing ones. Updates set <span className="text-white/80">lastUpdatedBy</span> automatically.
+              Create new infra tools or edit existing ones. Updates set{" "}
+              <span className="text-white/80">lastUpdatedBy</span> automatically.
             </p>
           </div>
 
@@ -372,9 +400,7 @@ export default function AdminTools() {
             onClick={() => setMode("create")}
             className={classNames(
               "px-3 py-2 rounded-lg border text-sm",
-              mode === "create"
-                ? "bg-[#232073] border-[#232073]"
-                : "bg-white/5 border-white/10 hover:bg-white/10"
+              mode === "create" ? "bg-[#232073] border-[#232073]" : "bg-white/5 border-white/10 hover:bg-white/10"
             )}
           >
             Create
@@ -383,9 +409,7 @@ export default function AdminTools() {
             onClick={() => setMode("edit")}
             className={classNames(
               "px-3 py-2 rounded-lg border text-sm",
-              mode === "edit"
-                ? "bg-[#232073] border-[#232073]"
-                : "bg-white/5 border-white/10 hover:bg-white/10"
+              mode === "edit" ? "bg-[#232073] border-[#232073]" : "bg-white/5 border-white/10 hover:bg-white/10"
             )}
           >
             Edit
@@ -399,19 +423,14 @@ export default function AdminTools() {
         </div>
 
         {/* Errors / notices */}
-        {loadingOptions ? (
-          <div className="mb-4 text-white/70">Loading dropdown options…</div>
-        ) : null}
+        {loadingOptions ? <div className="mb-4 text-white/70">Loading dropdown options…</div> : null}
         {error ? (
           <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-red-200">
             {error}
             {mode === "create" && matches?.length ? (
               <div className="mt-2 text-sm text-red-200/90">
                 Looks like a match exists. Select it below to edit — or use{" "}
-                <button
-                  className="underline"
-                  onClick={() => setForceCreate(true)}
-                >
+                <button className="underline" onClick={() => setForceCreate(true)}>
                   force create
                 </button>{" "}
                 (not recommended unless you’re sure).
@@ -472,11 +491,10 @@ export default function AdminTools() {
                     {scoreBadge(m.score)}
                   </div>
                   <div className="text-xs text-white/60 mt-1">
-                    Parent: {m.parentOrg || "—"} • infraId: <span className="font-mono">{m.infraId}</span>
+                    Parent: {m.parentOrg || "—"} • infraId:{" "}
+                    <span className="font-mono">{m.infraId}</span>
                   </div>
-                  <div className="text-xs text-white/40 mt-1">
-                    Click to open in edit mode
-                  </div>
+                  <div className="text-xs text-white/40 mt-1">Click to open in edit mode</div>
                 </button>
               ))}
             </div>
@@ -486,9 +504,7 @@ export default function AdminTools() {
         {/* Form */}
         <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">
-              {mode === "create" ? "Create tool" : "Edit tool"}
-            </h2>
+            <h2 className="text-lg font-semibold">{mode === "create" ? "Create tool" : "Edit tool"}</h2>
 
             {mode === "edit" ? (
               <button
@@ -507,7 +523,7 @@ export default function AdminTools() {
               <label className="block text-sm text-white/70 mb-1">Name *</label>
               <input
                 value={form.name}
-                onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 className="w-full px-4 py-2 rounded-lg bg-black/30 border border-white/10 focus:outline-none focus:ring-2 focus:ring-[#232073]"
               />
             </div>
@@ -517,11 +533,15 @@ export default function AdminTools() {
               <label className="block text-sm text-white/70 mb-1">Parent Org *</label>
               <select
                 value={form.parentOrg}
-                onChange={(e) => setForm(f => ({ ...f, parentOrg: e.target.value }))}
+                onChange={(e) => setForm((f) => ({ ...f, parentOrg: e.target.value }))}
                 className="w-full px-4 py-2 rounded-lg bg-black/30 border border-white/10 focus:outline-none focus:ring-2 focus:ring-[#232073]"
               >
                 <option value="">Select…</option>
-                {(options?.parentOrgs || []).map(v => <option key={v} value={v}>{v}</option>)}
+                {(options?.parentOrgs || []).map((v) => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -530,7 +550,7 @@ export default function AdminTools() {
               <label className="block text-sm text-white/70 mb-1">Link (domain) *</label>
               <input
                 value={form.link}
-                onChange={(e) => setForm(f => ({ ...f, link: e.target.value }))}
+                onChange={(e) => setForm((f) => ({ ...f, link: e.target.value }))}
                 placeholder="https://example.com"
                 className="w-full px-4 py-2 rounded-lg bg-black/30 border border-white/10 focus:outline-none focus:ring-2 focus:ring-[#232073]"
               />
@@ -541,11 +561,15 @@ export default function AdminTools() {
               <label className="block text-sm text-white/70 mb-1">AI Type *</label>
               <select
                 value={form.aiType}
-                onChange={(e) => setForm(f => ({ ...f, aiType: e.target.value }))}
+                onChange={(e) => setForm((f) => ({ ...f, aiType: e.target.value }))}
                 className="w-full px-4 py-2 rounded-lg bg-black/30 border border-white/10 focus:outline-none focus:ring-2 focus:ring-[#232073]"
               >
                 <option value="">Select…</option>
-                {(options?.aiTypes || []).map(v => <option key={v} value={v}>{v}</option>)}
+                {(options?.aiTypes || []).map((v) => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -554,11 +578,15 @@ export default function AdminTools() {
               <label className="block text-sm text-white/70 mb-1">Org Maturity *</label>
               <select
                 value={form.orgMaturity}
-                onChange={(e) => setForm(f => ({ ...f, orgMaturity: e.target.value }))}
+                onChange={(e) => setForm((f) => ({ ...f, orgMaturity: e.target.value }))}
                 className="w-full px-4 py-2 rounded-lg bg-black/30 border border-white/10 focus:outline-none focus:ring-2 focus:ring-[#232073]"
               >
                 <option value="">Select…</option>
-                {(options?.orgMaturities || []).map(v => <option key={v} value={v}>{v}</option>)}
+                {(options?.orgMaturities || []).map((v) => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -567,11 +595,15 @@ export default function AdminTools() {
               <label className="block text-sm text-white/70 mb-1">Inference Location *</label>
               <select
                 value={form.inferenceLocation}
-                onChange={(e) => setForm(f => ({ ...f, inferenceLocation: e.target.value }))}
+                onChange={(e) => setForm((f) => ({ ...f, inferenceLocation: e.target.value }))}
                 className="w-full px-4 py-2 rounded-lg bg-black/30 border border-white/10 focus:outline-none focus:ring-2 focus:ring-[#232073]"
               >
                 <option value="">Select…</option>
-                {(options?.inferenceLocations || []).map(v => <option key={v} value={v}>{v}</option>)}
+                {(options?.inferenceLocations || []).map((v) => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -580,11 +612,15 @@ export default function AdminTools() {
               <label className="block text-sm text-white/70 mb-1">Software Type *</label>
               <select
                 value={form.softwareType}
-                onChange={(e) => setForm(f => ({ ...f, softwareType: e.target.value }))}
+                onChange={(e) => setForm((f) => ({ ...f, softwareType: e.target.value }))}
                 className="w-full px-4 py-2 rounded-lg bg-black/30 border border-white/10 focus:outline-none focus:ring-2 focus:ring-[#232073]"
               >
                 <option value="">Select…</option>
-                {(options?.softwareTypes || []).map(v => <option key={v} value={v}>{v}</option>)}
+                {(options?.softwareTypes || []).map((v) => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -594,7 +630,7 @@ export default function AdminTools() {
                 <label className="block text-sm text-white/70 mb-1">HAS_API *</label>
                 <select
                   value={form.hasApi}
-                  onChange={(e) => setForm(f => ({ ...f, hasApi: e.target.value }))}
+                  onChange={(e) => setForm((f) => ({ ...f, hasApi: e.target.value }))}
                   className="w-full px-4 py-2 rounded-lg bg-black/30 border border-white/10"
                 >
                   <option value="YES">YES</option>
@@ -605,7 +641,7 @@ export default function AdminTools() {
                 <label className="block text-sm text-white/70 mb-1">LEGAL_CASE_PENDING *</label>
                 <select
                   value={form.legalCasePending}
-                  onChange={(e) => setForm(f => ({ ...f, legalCasePending: e.target.value }))}
+                  onChange={(e) => setForm((f) => ({ ...f, legalCasePending: e.target.value }))}
                   className="w-full px-4 py-2 rounded-lg bg-black/30 border border-white/10"
                 >
                   <option value="YES">YES</option>
@@ -620,7 +656,7 @@ export default function AdminTools() {
                 <label className="block text-sm text-white/70 mb-1">Year Company Founded</label>
                 <input
                   value={form.yearCompanyFounded}
-                  onChange={(e) => setForm(f => ({ ...f, yearCompanyFounded: e.target.value }))}
+                  onChange={(e) => setForm((f) => ({ ...f, yearCompanyFounded: e.target.value }))}
                   inputMode="numeric"
                   className="w-full px-4 py-2 rounded-lg bg-black/30 border border-white/10"
                 />
@@ -629,7 +665,7 @@ export default function AdminTools() {
                 <label className="block text-sm text-white/70 mb-1">Year Launched</label>
                 <input
                   value={form.yearLaunched}
-                  onChange={(e) => setForm(f => ({ ...f, yearLaunched: e.target.value }))}
+                  onChange={(e) => setForm((f) => ({ ...f, yearLaunched: e.target.value }))}
                   inputMode="numeric"
                   className="w-full px-4 py-2 rounded-lg bg-black/30 border border-white/10"
                 />
@@ -641,11 +677,15 @@ export default function AdminTools() {
               <label className="block text-sm text-white/70 mb-1">Funding</label>
               <select
                 value={form.funding}
-                onChange={(e) => setForm(f => ({ ...f, funding: e.target.value }))}
+                onChange={(e) => setForm((f) => ({ ...f, funding: e.target.value }))}
                 className="w-full px-4 py-2 rounded-lg bg-black/30 border border-white/10"
               >
                 <option value="">Select…</option>
-                {(options?.fundings || []).map(v => <option key={v} value={v}>{v}</option>)}
+                {(options?.fundings || []).map((v) => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
               </select>
               {fundingDef ? (
                 <div className="text-xs text-white/60 mt-2">
@@ -659,11 +699,15 @@ export default function AdminTools() {
               <label className="block text-sm text-white/70 mb-1">Foundational Model</label>
               <select
                 value={form.foundationalModel}
-                onChange={(e) => setForm(f => ({ ...f, foundationalModel: e.target.value }))}
+                onChange={(e) => setForm((f) => ({ ...f, foundationalModel: e.target.value }))}
                 className="w-full px-4 py-2 rounded-lg bg-black/30 border border-white/10"
               >
                 <option value="">Select…</option>
-                {(options?.foundationalModels || []).map(v => <option key={v} value={v}>{v}</option>)}
+                {(options?.foundationalModels || []).map((v) => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -672,11 +716,15 @@ export default function AdminTools() {
               <label className="block text-sm text-white/70 mb-1">Business Model</label>
               <select
                 value={form.businessModel}
-                onChange={(e) => setForm(f => ({ ...f, businessModel: e.target.value }))}
+                onChange={(e) => setForm((f) => ({ ...f, businessModel: e.target.value }))}
                 className="w-full px-4 py-2 rounded-lg bg-black/30 border border-white/10"
               >
                 <option value="">Select…</option>
-                {(options?.businessModels || []).map(v => <option key={v} value={v}>{v}</option>)}
+                {(options?.businessModels || []).map((v) => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -685,7 +733,7 @@ export default function AdminTools() {
               <label className="block text-sm text-white/70 mb-1">EULA Link</label>
               <input
                 value={form.eulaLink}
-                onChange={(e) => setForm(f => ({ ...f, eulaLink: e.target.value }))}
+                onChange={(e) => setForm((f) => ({ ...f, eulaLink: e.target.value }))}
                 placeholder="https://…"
                 className="w-full px-4 py-2 rounded-lg bg-black/30 border border-white/10"
               />
@@ -698,19 +746,19 @@ export default function AdminTools() {
               label="Tasks"
               options={options?.tasks || []}
               value={form.tasks}
-              onChange={(v) => setForm(f => ({ ...f, tasks: v }))}
+              onChange={(v) => setForm((f) => ({ ...f, tasks: v }))}
             />
             <MultiSelect
               label="Expected Input"
               options={options?.expectedInputs || []}
               value={form.expectedInput}
-              onChange={(v) => setForm(f => ({ ...f, expectedInput: v }))}
+              onChange={(v) => setForm((f) => ({ ...f, expectedInput: v }))}
             />
             <MultiSelect
               label="Generated Output"
               options={options?.generatedOutputs || []}
               value={form.generatedOutput}
-              onChange={(v) => setForm(f => ({ ...f, generatedOutput: v }))}
+              onChange={(v) => setForm((f) => ({ ...f, generatedOutput: v }))}
             />
           </div>
 
@@ -719,19 +767,17 @@ export default function AdminTools() {
             <label className="block text-sm text-white/70 mb-1">Desc * (min 50 chars)</label>
             <textarea
               value={form.desc}
-              onChange={(e) => setForm(f => ({ ...f, desc: e.target.value }))}
+              onChange={(e) => setForm((f) => ({ ...f, desc: e.target.value }))}
               rows={4}
               className="w-full px-4 py-3 rounded-lg bg-black/30 border border-white/10 focus:outline-none focus:ring-2 focus:ring-[#232073]"
             />
-            <div className="text-xs text-white/50 mt-1">
-              {String(form.desc || "").trim().length} / 50
-            </div>
+            <div className="text-xs text-white/50 mt-1">{String(form.desc || "").trim().length} / 50</div>
           </div>
 
           {/* Actions */}
           <div className="mt-6 flex items-center justify-between gap-3">
             <div className="text-xs text-white/50">
-              Signed in as <span className="text-white/70">{userEmail}</span>
+              Signed in as <span className="text-white/70">{userEmail || "—"}</span>
             </div>
 
             <div className="flex gap-2">
@@ -748,10 +794,10 @@ export default function AdminTools() {
                 className={classNames(
                   "px-5 py-2 rounded-lg border font-medium",
                   "bg-[#232073] border-[#232073] hover:brightness-110",
-                  (!canSubmit || saving || loadingOptions) ? "opacity-60 cursor-not-allowed" : ""
+                  !canSubmit || saving || loadingOptions ? "opacity-60 cursor-not-allowed" : ""
                 )}
               >
-                {saving ? "Saving…" : (mode === "create" ? "Create" : "Update")}
+                {saving ? "Saving…" : mode === "create" ? "Create" : "Update"}
               </button>
             </div>
           </div>
@@ -770,7 +816,7 @@ function MultiSelect({ label, options, value, onChange }) {
   const filtered = useMemo(() => {
     const f = String(filter || "").trim().toLowerCase();
     if (!f) return options;
-    return (options || []).filter(v => String(v).toLowerCase().includes(f));
+    return (options || []).filter((v) => String(v).toLowerCase().includes(f));
   }, [options, filter]);
 
   function toggle(v) {
@@ -799,18 +845,12 @@ function MultiSelect({ label, options, value, onChange }) {
           const checked = (value || []).includes(v);
           return (
             <label key={v} className="flex items-center gap-2 text-sm text-white/80 select-none">
-              <input
-                type="checkbox"
-                checked={checked}
-                onChange={() => toggle(v)}
-              />
+              <input type="checkbox" checked={checked} onChange={() => toggle(v)} />
               <span className="truncate">{v}</span>
             </label>
           );
         })}
-        {!filtered.length ? (
-          <div className="text-sm text-white/50">No matches</div>
-        ) : null}
+        {!filtered.length ? <div className="text-sm text-white/50">No matches</div> : null}
       </div>
     </div>
   );
