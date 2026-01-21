@@ -185,7 +185,7 @@ export default function AdminTools() {
     setDeleting(false);
 
     try {
-      const res = await fetch(`${API_BASE}/api/tool?infraId=${encodeURIComponent(selectedInfraId)}`, {
+      const res = await fetch(`${API_BASE}/tool?infraId=${encodeURIComponent(selectedInfraId)}`, {
         method: "GET",
         headers: { ...authHeaders() },
       });
