@@ -294,9 +294,9 @@ export default function AdminStats() {
             Manage Tools
           </Link>
 
-          <a href="/" className="text-blue-700 hover:underline">
+          <Link to="/details" className="text-blue-700 hover:underline">
             ← Back to dashboard
-          </a>
+          </Link>
         </div>
       </div>
 
