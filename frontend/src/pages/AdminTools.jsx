@@ -126,7 +126,7 @@ export default function AdminTools() {
     setError("");
     setLoadingOptions(true);
     try {
-      const res = await fetch(`${API_BASE}/api/options`, {
+      const res = await fetch(`${API_BASE}/options`, {
         method: "GET",
         headers: { ...authHeaders() },
       });
@@ -155,7 +155,7 @@ export default function AdminTools() {
     setLoadingSuggest(true);
     setError("");
     try {
-      const res = await fetch(`${API_BASE}/api/tools/suggest?q=${encodeURIComponent(qq)}`, {
+      const res = await fetch(`${API_BASE}/tools/suggest?q=${encodeURIComponent(qq)}`, {
         method: "GET",
         headers: { ...authHeaders() },
       });
@@ -268,7 +268,7 @@ export default function AdminTools() {
         },
       };
 
-      const res = await fetch(`${API_BASE}/api/tools/save`, {
+      const res = await fetch(`${API_BASE}/tools/save`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -315,7 +315,7 @@ export default function AdminTools() {
     setError("");
     setNotice("");
     try {
-      const res = await fetch(`${API_BASE}/api/tools/delete`, {
+      const res = await fetch(`${API_BASE}/tools/delete`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
